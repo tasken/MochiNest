@@ -1,0 +1,352 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>MochiNest</title>
+  <link rel="stylesheet" href="./styles.css">
+</head>
+<body>
+  <div class="page-shell">
+    <header class="hero">
+      <div class="hero-copy">
+        <div class="eyebrow">MochiNest</div>
+        <h1>A calmer BLE workspace for your Pixl.js files</h1>
+        <p>MochiNest is a client-side Bluetooth workspace for Pixl.js that uploads full folder trees, manages remote storage, and keeps slow device operations understandable while they run. It works entirely on top of the current firmware protocol, with no firmware changes required.</p>
+      </div>
+      <div class="chip-row">
+        <span class="chip">Web Bluetooth</span>
+        <span class="chip">Tree uploader</span>
+        <span class="chip">Remote file manager</span>
+        <span class="chip">Safe bulk actions</span>
+        <span class="chip">Chunk-safe writes</span>
+      </div>
+    </header>
+
+    <main class="layout">
+      <section class="panel wide workspace-panel">
+        <div class="split-header split-header-stack">
+          <div>
+            <h2>Workspace</h2>
+            <p class="section-copy">Switch between preparing uploads from your computer and managing storage directly on the device.</p>
+          </div>
+          <span id="modeDescription" class="mode-badge">Tree uploader active</span>
+        </div>
+
+        <div class="mode-switch-grid" role="tablist" aria-label="MochiNest workspace modes">
+          <button id="modeUploaderButton" class="mode-card active" type="button" role="tab" aria-selected="true">
+            <span class="mode-card-eyebrow">Send local content</span>
+            <strong class="mode-card-title">Tree uploader</strong>
+            <span class="mode-card-copy">Build an upload plan from local files and folders, create missing remote paths, and transfer everything safely over BLE.</span>
+          </button>
+
+          <button id="modeManagerButton" class="mode-card secondary" type="button" role="tab" aria-selected="false">
+            <span class="mode-card-eyebrow">Browse device storage</span>
+            <strong class="mode-card-title">File manager</strong>
+            <span class="mode-card-copy">Inspect remote folders, create new paths, sanitize names, and run careful bulk actions on the connected drive.</span>
+          </button>
+        </div>
+      </section>
+
+      <section class="panel connection-panel">
+        <div class="split-header split-header-stack">
+          <div>
+            <h2>Connection</h2>
+            <p class="section-copy">Connect over Web Bluetooth, refresh the drive list, then choose the writable drive MochiNest should work against.</p>
+          </div>
+        </div>
+
+        <div class="field-grid">
+          <div class="field">
+            <label for="connectButton">Device</label>
+            <button id="connectButton">Connect</button>
+          </div>
+
+          <div class="field">
+            <label for="refreshButton">Drive inventory</label>
+            <button id="refreshButton" class="secondary" disabled>Refresh drives</button>
+          </div>
+
+          <div class="field">
+            <label for="driveSelect">Remote drive</label>
+            <select id="driveSelect" disabled>
+              <option value="">Connect first</option>
+            </select>
+          </div>
+
+          <div id="uploaderBaseField" class="field">
+            <label for="remoteBaseInput">Remote base path</label>
+            <input id="remoteBaseInput" type="text" value="/" spellcheck="false" placeholder="/amiibo/imports">
+          </div>
+        </div>
+
+        <div id="uploaderBaseActions" class="toolbar toolbar-compact">
+          <button id="createPathButton" class="ghost" disabled>Create remote path</button>
+        </div>
+
+        <div class="status-grid">
+          <div class="status-card">
+            <span>Status</span>
+            <strong id="connectionState">Disconnected</strong>
+          </div>
+
+          <div class="status-card">
+            <span>Firmware</span>
+            <strong id="firmwareVersion">-</strong>
+          </div>
+
+          <div class="status-card">
+            <span>BLE address</span>
+            <strong id="bleAddress">-</strong>
+          </div>
+        </div>
+
+        <p class="hint">Use Chrome or Edge over HTTPS or localhost. The device must already be in BLE File Transfer mode. The firmware still enforces strict path and filename limits, so MochiNest skips unsafe actions instead of forcing them.</p>
+      </section>
+
+      <section id="treeUploaderPanel" class="panel">
+        <div class="split-header split-header-stack">
+          <div>
+            <h2>Tree uploader</h2>
+            <p class="section-copy">Choose a local folder or file set, review the generated plan, then send it to the selected drive.</p>
+          </div>
+        </div>
+
+        <div class="toolbar">
+          <button id="pickFolderButton" disabled>Pick local folder</button>
+          <button id="pickFilesButton" class="secondary" disabled>Pick files</button>
+          <label class="toggle">
+            <input id="preserveRootToggle" type="checkbox" checked>
+            Preserve local root folder
+          </label>
+        </div>
+
+        <input id="folderInput" type="file" hidden multiple webkitdirectory directory>
+        <input id="filesInput" type="file" hidden multiple>
+
+        <div id="selectionSummary" class="selection-summary">No upload plan yet.</div>
+
+        <div class="summary-grid">
+          <div class="summary-card">
+            <span>Folders</span>
+            <strong id="folderCount">0</strong>
+          </div>
+
+          <div class="summary-card">
+            <span>Files</span>
+            <strong id="fileCount">0</strong>
+          </div>
+
+          <div class="summary-card">
+            <span>Total bytes</span>
+            <strong id="totalBytes">0 B</strong>
+          </div>
+        </div>
+
+        <div class="toolbar toolbar-spaced">
+          <button id="startUploadButton" disabled>Start upload</button>
+          <button id="abortButton" class="warn" disabled>Abort</button>
+          <button id="clearPlanButton" class="ghost" disabled>Clear plan</button>
+        </div>
+
+        <div class="progress-wrap">
+          <div class="progress-label">
+            <span id="overallProgressLabel">0 of 0 bytes</span>
+            <span id="overallProgressPercent">0%</span>
+          </div>
+          <div class="progress-track">
+            <div id="overallProgressBar" class="progress-bar"></div>
+          </div>
+        </div>
+      </section>
+
+      <section id="uploadPlanPanel" class="panel wide">
+        <div class="split-header split-header-stack">
+          <div>
+            <h2>Upload plan</h2>
+            <p class="section-copy">Review each folder and file before starting the transfer. Status and per-file progress appear here during upload.</p>
+          </div>
+          <span id="queueStats">0 queued items</span>
+        </div>
+
+        <div class="table-shell">
+          <table>
+            <thead>
+              <tr>
+                <th>Kind</th>
+                <th>Local path</th>
+                <th>Remote path</th>
+                <th>Size</th>
+                <th>Status</th>
+                <th>Progress</th>
+              </tr>
+            </thead>
+            <tbody id="planTableBody">
+              <tr>
+                <td colspan="6" class="empty-state">Choose a folder or file set after connecting to the device.</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </section>
+
+      <section id="fileManagerPanel" class="panel wide" hidden>
+        <div class="split-header split-header-stack">
+          <div>
+            <h2>File manager</h2>
+            <p class="section-copy">Browse the remote drive, manage folders, and run careful cleanup actions that respect the device firmware limits.</p>
+          </div>
+          <span id="managerStatusLabel" class="panel-status">Connect to a device, then choose a drive to browse.</span>
+        </div>
+
+        <div class="toolbar">
+          <div class="field grow">
+            <label for="managerPathInput">Current remote folder</label>
+            <input id="managerPathInput" type="text" value="/" spellcheck="false" placeholder="E:/">
+          </div>
+          <button id="managerOpenButton" class="secondary" disabled>Open folder</button>
+          <button id="managerUpButton" class="ghost" disabled>Go up</button>
+          <button id="managerRefreshButton" class="ghost" disabled>Refresh</button>
+          <button id="managerUsePathButton" class="secondary" disabled>Use in uploader</button>
+        </div>
+
+        <div class="toolbar toolbar-wrapped">
+          <div class="field grow">
+            <label for="managerFolderNameInput">New folder name</label>
+            <input id="managerFolderNameInput" type="text" value="" spellcheck="false" placeholder="new-folder">
+          </div>
+          <button id="managerCreateFolderButton" disabled>Create folder</button>
+          <button id="managerSanitizeButton" class="secondary" disabled>Sanitize names</button>
+          <button id="managerSelectAllButton" class="ghost" disabled>Select all</button>
+          <button id="managerClearSelectionButton" class="ghost" disabled>Clear selection</button>
+          <button id="managerDeleteButton" class="warn" disabled>Delete selected</button>
+        </div>
+
+        <div class="summary-grid manager-summary-grid">
+          <div class="summary-card">
+            <span>Current folder</span>
+            <strong id="managerCurrentPath">-</strong>
+          </div>
+
+          <div class="summary-card">
+            <span>Entries</span>
+            <strong id="managerEntryCount">0</strong>
+          </div>
+
+          <div class="summary-card">
+            <span>Selection</span>
+            <strong id="managerSelectionInfo">Nothing selected</strong>
+          </div>
+        </div>
+
+        <div id="managerOutcomeBanner" class="notice-banner" hidden aria-live="polite">
+          <div class="notice-banner-copy">
+            <strong id="managerOutcomeTitle">Remote action summary</strong>
+            <p id="managerOutcomeText">Bulk results, skipped collisions, and path-limit warnings will be summarized here.</p>
+          </div>
+        </div>
+
+        <div id="managerBusyState" class="operation-state-card" hidden aria-live="polite">
+          <div class="operation-state-top">
+            <span id="managerBusyEyebrow" class="operation-eyebrow">Processing remote files</span>
+            <span id="managerBusyBadge" class="status-pill active">Running</span>
+          </div>
+
+          <h3 id="managerBusyTitle">Working on the current folder</h3>
+
+          <div class="operation-counter-row">
+            <strong id="managerBusyCount" class="operation-count">0 of 0</strong>
+            <span id="managerBusyPhase" class="operation-phase">Waiting for the next remote step</span>
+          </div>
+
+          <div class="progress-wrap">
+            <div class="progress-label">
+              <span id="managerBusyLabel">Preparing remote action</span>
+              <span id="managerBusyPercent">0%</span>
+            </div>
+            <div class="progress-track">
+              <div id="managerBusyBar" class="progress-bar"></div>
+            </div>
+          </div>
+
+          <p class="operation-footnote">The file list is hidden while the remote state is changing so the screen never shows stale or misleading rows.</p>
+        </div>
+
+        <div id="managerBrowserShell">
+          <div class="table-shell">
+            <table>
+              <thead>
+                <tr>
+                  <th class="selection-cell">Select</th>
+                  <th>Name</th>
+                  <th>Kind</th>
+                  <th>Size</th>
+                  <th>Action</th>
+                </tr>
+              </thead>
+              <tbody id="managerTableBody">
+                <tr>
+                  <td colspan="5" class="empty-state">Connect first.</td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </section>
+
+      <section class="panel wide activity-panel">
+        <div class="split-header split-header-stack">
+          <div>
+            <h2>Activity</h2>
+            <p class="section-copy">Live operation state appears here first, followed by the running session log.</p>
+          </div>
+          <button id="clearLogButton" class="ghost">Clear log</button>
+        </div>
+
+        <div id="activityStatusCard" class="activity-status-card" data-state="idle" aria-live="polite">
+          <div class="activity-status-top">
+            <div>
+              <span id="activityPhaseLabel" class="activity-eyebrow">Idle</span>
+              <h3 id="activityOperationTitle">Waiting for the next device action</h3>
+            </div>
+            <span id="activityStatusBadge" class="status-pill pending">Ready</span>
+          </div>
+
+          <div class="activity-metric-grid">
+            <div class="activity-metric-card">
+              <span class="activity-metric-label">Progress</span>
+              <strong id="activityProgressCount" class="activity-progress-count">0 of 0</strong>
+            </div>
+
+            <div class="activity-metric-card">
+              <span class="activity-metric-label">Current detail</span>
+              <strong id="activityProgressDetail" class="activity-progress-detail">MochiNest is ready. Connect to a device, choose a drive, then start working.</strong>
+            </div>
+          </div>
+
+          <div class="progress-wrap">
+            <div class="progress-label">
+              <span id="activityProgressLabel">No active transfer</span>
+              <span id="activityProgressPercent">0%</span>
+            </div>
+            <div class="progress-track">
+              <div id="activityProgressBar" class="progress-bar"></div>
+            </div>
+          </div>
+
+          <div id="activityOutcomeBanner" class="notice-banner" hidden aria-live="polite">
+            <div class="notice-banner-copy">
+              <strong id="activityOutcomeTitle">No recent summary</strong>
+              <p id="activityOutcomeText">Completed work, partial results, skipped collisions, and path-limit warnings will be summarized here.</p>
+            </div>
+          </div>
+        </div>
+
+        <pre id="logOutput" class="log">Ready.</pre>
+      </section>
+    </main>
+  </div>
+
+  <script type="module" src="./app.js"></script>
+</body>
+</html>
