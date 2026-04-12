@@ -1,0 +1,3 @@
+[submodule "upstream/pixl.js"]
+	path = upstream/pixl.js
+	url = https://github.com/solosky/pixl.js

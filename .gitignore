@@ -1,0 +1,5 @@
+.cert/
+*.log
+.local/
+.venv/
+tasks.py
