@@ -2,7 +2,8 @@
 *.log
 .local/
 .venv/
-tasks.py
+__pycache__/
+dist/
 .superpowers/
 CLAUDE.md
 .github/copilot-instructions.md
