@@ -88,19 +88,26 @@
 
       <!-- State 1: Drive / Folder (sidebar) -->
       <div class="panel-state" id="panelFolder">
-        <div class="sidebar-section-label">Drive</div>
-        <div class="sidebar-drive-row">
-          <span class="ms-sm sidebar-drive-icon">hard_drive</span>
-          <span class="sidebar-drive-name" id="panelFolderName">Pixl.js</span>
-          <span class="sidebar-drive-path" id="panelFolderPath">E:/</span>
-        </div>
-        <div class="sidebar-storage-card">
-          <div class="sidebar-storage-header">
-            <span class="sidebar-storage-label">Storage</span>
-            <span class="sidebar-storage-count" id="panelFolderCount">—</span>
+        <div class="sidebar-module">
+          <div class="sidebar-section-label">Drive</div>
+          <div class="sidebar-drive-row">
+            <span class="ms-sm sidebar-drive-icon">hard_drive</span>
+            <span class="sidebar-drive-name" id="panelFolderName">Pixl.js</span>
+            <span class="sidebar-drive-path" id="panelFolderPath">E:/</span>
           </div>
-          <div class="panel-drive-bar"><div class="panel-drive-bar-fill" id="panelDriveBarFill"></div></div>
-          <div class="sidebar-storage-usage" id="panelDriveUsage"></div>
+          <div class="sidebar-drive-storage">
+            <div class="panel-drive-bar"><div class="panel-drive-bar-fill" id="panelDriveBarFill"></div></div>
+            <div class="sidebar-storage-usage" id="panelDriveUsage"></div>
+          </div>
+        </div>
+        <div class="sidebar-module">
+          <div class="sidebar-section-label">Folder</div>
+          <div class="sidebar-storage-header">
+            <span class="sidebar-folder-icon ms-sm">folder</span>
+            <span class="sidebar-folder-display-name" id="panelCurrentFolderName">—</span>
+            <span class="sidebar-storage-count" id="panelFolderCount"></span>
+          </div>
+          <div class="sidebar-folder-size" id="panelFolderSize"></div>
         </div>
         <div class="sidebar-action-grid">
           <button class="btn-labeled ghost sidebar-action-btn" id="btnSidebarNew"><span class="ms-sm">create_new_folder</span> New</button>
@@ -168,6 +175,32 @@
         <button class="btn-labeled" id="btnNewFolder" title="New folder" hidden><span class="ms-sm">create_new_folder</span> <span class="nav-btn-label">New folder</span></button>
       </div>
 
+      <!-- Table column header (always visible, above banners) -->
+      <div class="table-head-wrap" id="tableHeadWrap">
+        <table class="file-table-head">
+          <colgroup>
+            <col class="col-check">
+            <col class="col-name">
+            <col class="col-size">
+            <col class="col-actions">
+          </colgroup>
+          <thead>
+            <tr>
+              <th class="cell-check"><input type="checkbox" id="checkAll" title="Select all" aria-label="Select all"></th>
+              <th>Name</th>
+              <th>Size</th>
+              <th class="cell-actions"></th>
+            </tr>
+          </thead>
+        </table>
+      </div>
+
+      <!-- Folder warning banner (large dir / truncated listing) -->
+      <div id="folderWarningBanner" class="folder-warning-banner" hidden>
+        <span class="ms-sm folder-warning-icon">warning</span>
+        <span class="folder-warning-text" id="folderWarningText"></span>
+      </div>
+
       <!-- Selection banner (visible only when rows are selected) -->
       <div id="selectionBanner" class="selection-banner" hidden>
         <span id="selectionCount" class="selection-banner-count"></span>
@@ -185,14 +218,12 @@
           </div>
         </div>
         <table id="fileTable">
-          <thead>
-            <tr>
-              <th class="cell-check"><input type="checkbox" id="checkAll" title="Select all" aria-label="Select all"></th>
-              <th>Name</th>
-              <th>Size</th>
-              <th class="cell-actions"></th>
-            </tr>
-          </thead>
+          <colgroup>
+            <col class="col-check">
+            <col class="col-name">
+            <col class="col-size">
+            <col class="col-actions">
+          </colgroup>
           <tbody id="fileTableBody"></tbody>
         </table>
       </div>
@@ -214,40 +245,37 @@
           <div class="details-hero-band" id="detailsHeroBand" hidden></div>
         </div>
         <div class="details-body">
-          <div class="details-name" id="panelFileName"></div>
-          <div class="details-path" id="detailsFilePath"></div>
-          <div class="details-action-grid">
-            <button class="btn-labeled ghost details-action-btn" id="panelBtnDownload">
-              <span class="ms-sm">download</span> Download
-            </button>
-            <button class="btn-labeled ghost details-action-btn" id="panelBtnRename">
-              <span class="ms-sm">edit</span> Rename
-            </button>
+          <div class="details-title-block">
+            <div class="details-name" id="panelFileName"></div>
+            <div class="details-path" id="detailsFilePath"></div>
           </div>
-          <button class="btn-labeled danger details-delete-btn" id="panelBtnDelete">
-            <span class="ms-sm">delete</span> Delete
-          </button>
           <div id="panelNfcTag" hidden>
-            <div class="details-section-header">Amiibo Info</div>
-            <div id="panelNfcTagContent" class="details-nfc-rows"></div>
-          </div>
-          <div class="details-section-header">Properties</div>
-          <div class="details-info-rows">
-            <div class="details-info-row">
-              <span class="details-info-label">Kind</span>
-              <span id="detailsKind" class="details-info-value">—</span>
-            </div>
-            <div class="details-info-row">
-              <span class="details-info-label">Size</span>
-              <span id="panelFileSize" class="details-info-value"></span>
-            </div>
-            <div class="details-info-row">
-              <span class="details-info-label">Path</span>
-              <span id="detailsPathInRow" class="details-info-value details-info-mono"></span>
+            <div class="sidebar-module">
+              <div class="sidebar-section-label">NFC Tag Info</div>
+              <div id="panelNfcTagContent" class="details-nfc-rows"></div>
             </div>
           </div>
-          <div class="details-section-header">Flags</div>
-          <div id="panelFileFlags" class="details-flags"></div>
+          <div class="sidebar-module">
+            <div class="sidebar-section-label">Properties</div>
+            <div class="details-info-rows">
+              <div class="details-info-row">
+                <span class="details-info-label">Kind</span>
+                <span id="detailsKind" class="details-info-value">—</span>
+              </div>
+              <div class="details-info-row">
+                <span class="details-info-label">Size</span>
+                <span id="panelFileSize" class="details-info-value"></span>
+              </div>
+              <div class="details-info-row">
+                <span class="details-info-label">Path</span>
+                <span id="detailsPathInRow" class="details-info-value details-info-mono"></span>
+              </div>
+            </div>
+          </div>
+          <div class="sidebar-module">
+            <div class="sidebar-section-label">Flags</div>
+            <div id="panelFileFlags" class="details-flags"></div>
+          </div>
         </div>
       </aside>
     </div><!-- end details-sheet-container -->

@@ -598,12 +598,19 @@ class DevMockClient {
       "E:/save": [
         { name: "backup.bin", type: "FILE", size: 1229, meta: { nfcTagHead: null, nfcTagTail: null } },
       ],
-      "E:/nfc/large-set": Array.from({ length: 95 }, (_, i) => ({
-        name: `amiibo_${String(i + 1).padStart(3, "0")}.bin`,
-        type: "FILE",
-        size: 540,
-        meta: { nfcTagHead: 0x01000000 + i, nfcTagTail: 0x03530902 },
-      })),
+      "E:/nfc/large-set": [
+        { name: "super_smash_bros_ultimate_mario_classic_costume.bin", type: "FILE", size: 540, meta: { nfcTagHead: 0x01000060, nfcTagTail: 0x03530902 } },
+        { name: "the_legend_of_zelda_breath_of_the_wild_link.bin",     type: "FILE", size: 540, meta: { nfcTagHead: 0x01000061, nfcTagTail: 0x03530902 } },
+        { name: "animal_crossing_new_horizons_isabelle_summer.bin",     type: "FILE", size: 540, meta: { nfcTagHead: 0x01000062, nfcTagTail: 0x03530902 } },
+        { name: "splatoon_3_inkling_girl_neon_pink_special_ed.bin",     type: "FILE", size: 540, meta: { nfcTagHead: 0x01000063, nfcTagTail: 0x03530902 } },
+        { name: "pokemon_scarlet_violet_koraidon_full_power.bin",       type: "FILE", size: 540, meta: { nfcTagHead: 0x01000064, nfcTagTail: 0x03530902 } },
+        ...Array.from({ length: 90 }, (_, i) => ({
+          name: `tag_${String(i + 1).padStart(3, "0")}.bin`,
+          type: "FILE",
+          size: 540,
+          meta: { nfcTagHead: 0x01000000 + i, nfcTagTail: 0x03530902 },
+        })),
+      ],
     };
     return { ok: true, data: fs[path] ?? [] };
   }
@@ -635,7 +642,7 @@ class DevMockClient {
       "E:/save/backup.bin":                { size: 1229, nfcTagHead: null,       nfcTagTail: null },
     };
     // Generate mock entries for large-set files
-    const largeMatch = path.match(/^E:\/nfc\/large-set\/amiibo_(\d+)\.bin$/);
+    const largeMatch = path.match(/^E:\/nfc\/large-set\/tag_(\d+)\.bin$/);
     if (largeMatch) {
       const idx = parseInt(largeMatch[1], 10) - 1;
       const data = new Uint8Array(540);
@@ -744,7 +751,9 @@ const el = {
   sidebarDropZone: document.getElementById("sidebarDropZone"),
   panelFolderName: document.getElementById("panelFolderName"),
   panelFolderPath: document.getElementById("panelFolderPath"),
+  panelCurrentFolderName: document.getElementById("panelCurrentFolderName"),
   panelFolderCount: document.getElementById("panelFolderCount"),
+  panelFolderSize: document.getElementById("panelFolderSize"),
   panelDriveBarFill: document.getElementById("panelDriveBarFill"),
   panelDriveUsage: document.getElementById("panelDriveUsage"),
 
@@ -767,9 +776,6 @@ const el = {
   panelFileFlags: document.getElementById("panelFileFlags"),
   panelNfcTag: document.getElementById("panelNfcTag"),
   panelNfcTagContent: document.getElementById("panelNfcTagContent"),
-  panelBtnDownload: document.getElementById("panelBtnDownload"),
-  panelBtnRename: document.getElementById("panelBtnRename"),
-  panelBtnDelete: document.getElementById("panelBtnDelete"),
 
   // Context panel — upload state
   panelUpload: document.getElementById("panelUpload"),
@@ -816,6 +822,8 @@ const el = {
   selectionCount: document.getElementById("selectionCount"),
   btnClearSelection: document.getElementById("btnClearSelection"),
   btnDeleteSelected: document.getElementById("btnDeleteSelected"),
+  folderWarningBanner: document.getElementById("folderWarningBanner"),
+  folderWarningText: document.getElementById("folderWarningText"),
   toastContainer: document.getElementById("toastContainer"),
 
   // Sheet (mobile bottom panel)
@@ -1079,6 +1087,8 @@ function setConnState(newState) {
     renderDrive(null);
     renderFileTable();
     renderBreadcrumb("");
+    el.folderWarningBanner.hidden = true;
+    el.folderWarningText.textContent = "";
     el.topbarBadge.textContent = "";
     el.topbarBadge.classList.remove("dev");
   }
@@ -1092,7 +1102,6 @@ function showConnError(msg) {
 }
 
 const MAX_TOASTS = 3;
-const TOAST_STACK_OFFSET = 20;
 
 // Toast copy contract:
 // - Use a short summary plus optional detail.
@@ -1104,42 +1113,81 @@ function normalizeToastPart(value) {
   return text.replace(/[.!?]+$/, "");
 }
 
-function buildToastMessage(summary, detail = "") {
-  const parts = [normalizeToastPart(summary), normalizeToastPart(detail)].filter(Boolean);
-  return parts.length > 0 ? `${parts.join(". ")}.` : "";
-}
-
 function createToast(options) {
   const {
     tone = "success",
+    summary = "",
+    detail = "",
     message = "",
     html = "",
     sticky = tone === "error" || tone === "warning",
+    actionLabel = "",
+    actionUrl = "",
+    onAction = null,
   } = options;
 
+  // Resolve summary/detail from legacy `message` string if needed
+  let resolvedSummary = summary;
+  let resolvedDetail = detail;
+  if (!resolvedSummary && message) {
+    const parts = message.replace(/[.!?]+$/, "").split(/\.\s+/);
+    resolvedSummary = parts[0] || "";
+    resolvedDetail = parts.slice(1).join(". ");
+  }
+
   const hasHtml = typeof html === "string" && html.trim() !== "";
-  const finalMessage = normalizeToastPart(message);
-  if (!hasHtml && !finalMessage) return null;
+  if (!hasHtml && !resolvedSummary) return null;
+
+  const iconMap = { success: "check", error: "error", warning: "warning", info: "info" };
 
   const toast = document.createElement("div");
-  toast.className = "toast visible" + (tone === "error" ? " error" : tone === "warning" ? " warning" : "");
+  toast.className = `toast ${tone}`;
 
-  const span = document.createElement("span");
+  // Icon
+  const icon = document.createElement("span");
+  icon.className = "toast-icon";
+  icon.textContent = iconMap[tone] || "info";
+  toast.appendChild(icon);
+
+  // Body
+  const body = document.createElement("div");
+  body.className = "toast-body";
   if (hasHtml) {
-    span.innerHTML = html;
+    body.innerHTML = html;
   } else {
-    span.textContent = `${finalMessage}.`;
+    const s = document.createElement("span");
+    s.className = "toast-summary";
+    s.textContent = resolvedSummary;
+    body.appendChild(s);
+    if (resolvedDetail) {
+      const d = document.createElement("span");
+      d.className = "toast-detail";
+      d.textContent = resolvedDetail;
+      body.appendChild(d);
+    }
   }
-  toast.appendChild(span);
+  toast.appendChild(body);
 
-  if (sticky) {
+  // Optional action button
+  if (actionLabel) {
     const btn = document.createElement("button");
-    btn.className = "toast-close";
-    btn.setAttribute("aria-label", "Dismiss");
-    btn.innerHTML = '<span class="ms-sm">close</span>';
-    btn.addEventListener("click", () => removeToast(toast));
+    btn.className = "toast-action";
+    btn.textContent = actionLabel;
+    btn.addEventListener("click", () => {
+      if (actionUrl) window.open(actionUrl, "_blank", "noopener");
+      if (onAction) onAction();
+      removeToast(toast);
+    });
     toast.appendChild(btn);
   }
+
+  // Close button (always shown)
+  const closeBtn = document.createElement("button");
+  closeBtn.className = "toast-close";
+  closeBtn.setAttribute("aria-label", "Dismiss");
+  closeBtn.innerHTML = '<span class="ms-sm">close</span>';
+  closeBtn.addEventListener("click", () => removeToast(toast));
+  toast.appendChild(closeBtn);
 
   appendToast(toast);
 
@@ -1151,46 +1199,28 @@ function createToast(options) {
 }
 
 function showSuccessToast(summary, detail = "") {
-  return createToast({ tone: "success", message: buildToastMessage(summary, detail), sticky: false });
+  return createToast({ tone: "success", summary: normalizeToastPart(summary), detail: normalizeToastPart(detail), sticky: false });
 }
 
 function showErrorToast(summary, detail = "") {
-  return createToast({ tone: "error", message: buildToastMessage(summary, detail) });
+  return createToast({ tone: "error", summary: normalizeToastPart(summary), detail: normalizeToastPart(detail) });
 }
 
 function showWarningToast(summary, detail = "") {
-  return createToast({ tone: "warning", message: buildToastMessage(summary, detail) });
-}
-
-function showRichWarningToast(html) {
-  return createToast({ tone: "warning", html });
-}
-
-function layoutToasts() {
-  const toasts = Array.from(el.toastContainer.querySelectorAll(".toast.visible"));
-  for (const [index, toast] of toasts.entries()) {
-    toast.style.top = `${index * TOAST_STACK_OFFSET}px`;
-    toast.style.zIndex = String(index + 1);
-  }
+  return createToast({ tone: "warning", summary: normalizeToastPart(summary), detail: normalizeToastPart(detail) });
 }
 
 function appendToast(toast) {
+  toast.classList.add("visible");
   el.toastContainer.appendChild(toast);
-
-  const toasts = el.toastContainer.querySelectorAll(".toast.visible");
+  const toasts = el.toastContainer.querySelectorAll(".toast");
   if (toasts.length > MAX_TOASTS) removeToast(toasts[0]);
-
-  layoutToasts();
 }
 
 function removeToast(toast) {
   if (!toast || !toast.parentNode) return;
   toast.classList.remove("visible");
-  layoutToasts();
-  setTimeout(() => {
-    toast.remove();
-    layoutToasts();
-  }, 200);
+  setTimeout(() => toast.remove(), 200);
 }
 
 function clearToasts({ keepErrors = false } = {}) {
@@ -1225,10 +1255,13 @@ async function checkFirmwareVersion(deviceVersion) {
     const latest = data.tag_name;
     if (!latest) return;
     if (compareSemver(deviceVersion, latest) < 0) {
-      showRichWarningToast(
-        `Firmware update available. Current version ${escapeHtml(deviceVersion)} is outdated; latest is ${escapeHtml(latest)}. ` +
-        `<a href="${PIXL_RELEASES_URL}" target="_blank" rel="noopener">Download update</a>`
-      );
+      createToast({
+        tone: "info",
+        summary: `Firmware ${latest} available`,
+        detail: `You have ${deviceVersion}`,
+        actionLabel: "Download",
+        actionUrl: PIXL_RELEASES_URL,
+      });
     }
   } catch (_) { /* network error, skip silently */ }
 }
@@ -1492,8 +1525,7 @@ async function browseFolder(path) {
   if (cached) {
     entries = cached.entries;
     truncated = cached.truncated;
-  } else {
-    try {
+  } else {    try {
       let res;
       for (let attempt = 1; attempt <= 3; attempt++) {
         res = await state.client.readFolder(path);
@@ -1511,16 +1543,26 @@ async function browseFolder(path) {
         if (e.type === "DIR") state.client.createdFolders.add(joinChildPath(path, e.name));
       }
       if (truncated) {
-        showWarningToast("Directory listing may be incomplete", "Some entries could not be received over BLE");
         log(`Warning: directory listing for ${path} was truncated (${entries.length} entries received)`, "err");
       } else if (entries.length >= LARGE_DIR_THRESHOLD) {
-        showWarningToast(`This folder has ${entries.length} items`, "Browsing and uploads may be slow or unreliable over BLE");
         log(`Warning: ${path} has ${entries.length} entries, above the ${LARGE_DIR_THRESHOLD}-item threshold`, "err");
       }
     } catch (err) {
       log(`Error reading ${path}: ${err.message}`, "err");
       return;
     }
+  }
+
+  // Update warning banner for current folder (always, whether cached or fresh)
+  if (truncated) {
+    el.folderWarningBanner.hidden = false;
+    el.folderWarningText.textContent = "Directory listing may be incomplete. Some entries could not be received over BLE.";
+  } else if (entries.length >= LARGE_DIR_THRESHOLD) {
+    el.folderWarningBanner.hidden = false;
+    el.folderWarningText.textContent = `This folder has ${entries.length} items. Browsing and uploads may be slow or unreliable over BLE.`;
+  } else {
+    el.folderWarningBanner.hidden = true;
+    el.folderWarningText.textContent = "";
   }
 
   state.currentPath = path;
@@ -1535,13 +1577,6 @@ async function browseFolder(path) {
 }
 
 // === Render File Table ===
-
-function formatNfcTagHex(head, tail) {
-  if (head == null || tail == null) return "\u2014";
-  const h = (head >>> 0).toString(16).toUpperCase().padStart(8, "0");
-  const t = (tail >>> 0).toString(16).toUpperCase().padStart(8, "0");
-  return `${h}:${t}`;
-}
 
 // NFC tag API lookup — session cache to avoid re-fetching the same ID
 const _nfcTagCache = new Map();
@@ -1560,21 +1595,37 @@ async function lookupNfcTag(head, tail) {
   return info;
 }
 
-function amiiboSeriesGradient(series) {
+function nfcSeriesGradient(series) {
   if (!series) return "linear-gradient(135deg, #8b5cf6, #d946ef)";
   const map = [
-    ["super mario", "linear-gradient(135deg, #ef4444, #dc2626)"],
-    ["zelda", "linear-gradient(135deg, #10b981, #0d9488)"],
-    ["pokemon", "linear-gradient(135deg, #f59e0b, #d97706)"],
-    ["animal crossing", "linear-gradient(135deg, #84cc16, #65a30d)"],
-    ["splatoon", "linear-gradient(135deg, #f97316, #ea580c)"],
-    ["fire emblem", "linear-gradient(135deg, #3b82f6, #2563eb)"],
-    ["metroid", "linear-gradient(135deg, #f97316, #dc2626)"],
-    ["kirby", "linear-gradient(135deg, #ec4899, #db2777)"],
-    ["donkey kong", "linear-gradient(135deg, #f59e0b, #dc2626)"],
-    ["star fox", "linear-gradient(135deg, #8b5cf6, #7c3aed)"],
-    ["mario kart", "linear-gradient(135deg, #ef4444, #f59e0b)"],
-    ["pikmin", "linear-gradient(135deg, #84cc16, #10b981)"],
+    ["super smash",       "linear-gradient(135deg, #1e1b4b, #312e81)"],
+    ["super mario",       "linear-gradient(135deg, #ef4444, #dc2626)"],
+    ["mario kart",        "linear-gradient(135deg, #ef4444, #f59e0b)"],
+    ["mario sports",      "linear-gradient(135deg, #ef4444, #22c55e)"],
+    ["8-bit",             "linear-gradient(135deg, #dc2626, #7f1d1d)"],
+    ["zelda",             "linear-gradient(135deg, #10b981, #0d9488)"],
+    ["pokemon",           "linear-gradient(135deg, #f59e0b, #d97706)"],
+    ["animal crossing",   "linear-gradient(135deg, #84cc16, #65a30d)"],
+    ["splatoon",          "linear-gradient(135deg, #f97316, #ea580c)"],
+    ["fire emblem",       "linear-gradient(135deg, #3b82f6, #2563eb)"],
+    ["metroid",           "linear-gradient(135deg, #f97316, #dc2626)"],
+    ["kirby",             "linear-gradient(135deg, #ec4899, #db2777)"],
+    ["donkey kong",       "linear-gradient(135deg, #f59e0b, #dc2626)"],
+    ["star fox",          "linear-gradient(135deg, #8b5cf6, #7c3aed)"],
+    ["pikmin",            "linear-gradient(135deg, #84cc16, #10b981)"],
+    ["yoshi",             "linear-gradient(135deg, #22c55e, #16a34a)"],
+    ["xenoblade",         "linear-gradient(135deg, #0284c7, #0d9488)"],
+    ["mega man",          "linear-gradient(135deg, #0ea5e9, #0284c7)"],
+    ["monster hunter",    "linear-gradient(135deg, #92400e, #78350f)"],
+    ["shovel knight",     "linear-gradient(135deg, #1d4ed8, #1e40af)"],
+    ["street fighter",    "linear-gradient(135deg, #dc2626, #ca8a04)"],
+    ["diablo",            "linear-gradient(135deg, #991b1b, #450a0a)"],
+    ["yu-gi-oh",          "linear-gradient(135deg, #7c3aed, #d97706)"],
+    ["super nintendo",    "linear-gradient(135deg, #ef4444, #16a34a)"],
+    ["skylanders",        "linear-gradient(135deg, #7c3aed, #1d4ed8)"],
+    ["chibi-robo",        "linear-gradient(135deg, #06b6d4, #0891b2)"],
+    ["power pros",        "linear-gradient(135deg, #1d4ed8, #15803d)"],
+    ["boxboy",            "linear-gradient(135deg, #374151, #111827)"],
   ];
   const lower = series.toLowerCase();
   for (const [key, grad] of map) {
@@ -1589,7 +1640,7 @@ function amiiboSeriesGradient(series) {
 function renderNfcTagField(head, tail, info) {
   const uid = `${(head >>> 0).toString(16).toUpperCase().padStart(8, "0")}:${(tail >>> 0).toString(16).toUpperCase().padStart(8, "0")}`;
   if (!info) {
-    return `<div class="details-nfc-row"><span class="details-nfc-label">UID</span><span class="details-nfc-uid" title="Copy UID" onclick="navigator.clipboard?.writeText(this.textContent)">${escapeHtml(uid)}</span></div>`;
+    return `<div class="details-nfc-row"><span class="details-nfc-label">Figure ID</span><span class="details-nfc-value details-nfc-mono" title="Copy ID" onclick="navigator.clipboard?.writeText(this.textContent)">${escapeHtml(uid)}</span></div>`;
   }
   const rows = [];
   if (info.name) rows.push(`<div class="details-nfc-row"><span class="details-nfc-label">Character</span><span class="details-nfc-value">${escapeHtml(info.name)}</span></div>`);
@@ -1597,7 +1648,7 @@ function renderNfcTagField(head, tail, info) {
   if (info.gameSeries) rows.push(`<div class="details-nfc-row"><span class="details-nfc-label">Game</span><span class="details-nfc-value">${escapeHtml(info.gameSeries)}</span></div>`);
   if (info.type) rows.push(`<div class="details-nfc-row"><span class="details-nfc-label">Type</span><span class="details-nfc-value">${escapeHtml(info.type)}</span></div>`);
   if (info.release?.na) rows.push(`<div class="details-nfc-row"><span class="details-nfc-label">Released</span><span class="details-nfc-value">${escapeHtml(info.release.na)}</span></div>`);
-  rows.push(`<div class="details-nfc-row"><span class="details-nfc-label">UID</span><span class="details-nfc-uid" title="Copy UID" onclick="navigator.clipboard?.writeText(this.textContent)">${escapeHtml(uid)}</span></div>`);
+  rows.push(`<div class="details-nfc-row"><span class="details-nfc-label">Figure ID</span><span class="details-nfc-value details-nfc-mono" title="Copy ID" onclick="navigator.clipboard?.writeText(this.textContent)">${escapeHtml(uid)}</span></div>`);
   return rows.join("");
 }
 
@@ -1610,15 +1661,15 @@ function applyNfcTagDisplay(entry, head, tail) {
   if (_nfcTagCache.has(key)) {
     const info = _nfcTagCache.get(key);
     el.panelNfcTagContent.innerHTML = renderNfcTagField(head, tail, info);
-    _applyAmiiboHero(entry, info);
+    _applyNfcHero(entry, info, head, tail);
     return;
   }
   const uidStr = `${(head >>> 0).toString(16).toUpperCase().padStart(8,"0")}:${(tail >>> 0).toString(16).toUpperCase().padStart(8,"0")}`;
-  el.panelNfcTagContent.innerHTML = `<div class="details-nfc-row"><span class="details-nfc-label"># UID</span><span class="details-nfc-uid">${escapeHtml(uidStr)}</span></div>`;
+  el.panelNfcTagContent.innerHTML = `<div class="details-nfc-row"><span class="details-nfc-label"># Figure ID</span><span class="details-nfc-value details-nfc-mono">${escapeHtml(uidStr)}</span></div>`;
   lookupNfcTag(head, tail).then(info => {
     if (state.drawerEntry !== entry) return;
     el.panelNfcTagContent.innerHTML = renderNfcTagField(head, tail, info);
-    _applyAmiiboHero(entry, info);
+    _applyNfcHero(entry, info, head, tail);
   });
 }
 
@@ -1642,17 +1693,17 @@ function _gradientTextColor(gradientCss) {
   return "#ffffff";
 }
 
-function _applyAmiiboHero(entry, info) {
+function _applyNfcHero(entry, info, head, tail) {
   if (!info) return;
-  const grad = amiiboSeriesGradient(info.gameSeries || info.amiiboSeries);
+  const grad = nfcSeriesGradient(info.gameSeries || info.amiiboSeries);
   const textColor = _gradientTextColor(grad);
 
   // Image
   if (info.image) {
     el.detailsHeroImgArea.innerHTML =
-      `<img src="${encodeURI(info.image)}" alt="${escapeHtml(info.name || entry.name)}" loading="lazy">`;
-    el.detailsHeroImgArea.querySelector("img").addEventListener("click", () => {
-      openLightbox(info.image, info.name || entry.name, info, entry);
+      `<div class="details-hero-img-wrap"><img src="${encodeURI(info.image)}" alt="${escapeHtml(info.name || entry.name)}" loading="lazy"><span class="details-hero-zoom-icon"></span></div>`;
+    el.detailsHeroImgArea.querySelector(".details-hero-img-wrap").addEventListener("click", () => {
+      openLightbox(info.image, info.name || entry.name, info, head, tail, entry);
     });
   }
 
@@ -1715,23 +1766,22 @@ function renderFileTable() {
     const isPanelActive = state.drawerEntry && state.drawerEntry.name === entry.name;
     const isSelected = state.selectedNames.has(entry.name);
 
-    const warnIcon = state.truncated && utf8Length(entry.name) > LONG_FILENAME_BYTES
-      ? `<span class="ms-sm warn-icon" title="Filename exceeds ${LONG_FILENAME_BYTES} bytes and contributes to BLE transfer limit">warning</span> `
-      : "";
+    const nameWarn = utf8Length(entry.name) > LONG_FILENAME_BYTES;
     const iconHtml = isDir
       ? `<span class="cell-name-icon folder"><span class="ms-sm">folder</span></span>`
       : `<span class="cell-name-icon file"><span class="ms-sm">insert_drive_file</span></span>`;
     const nameCell = isDir
-      ? `<td class="cell-name folder"><span class="cell-name-inner">${warnIcon}${iconHtml}${escapeHtml(entry.name)}</span></td>`
-      : `<td class="cell-name"><span class="cell-name-inner">${warnIcon}${iconHtml}${escapeHtml(entry.name)}</span></td>`;
+      ? `<td class="cell-name folder"><span class="cell-name-inner">${iconHtml}${escapeHtml(entry.name)}</span></td>`
+      : `<td class="cell-name"><span class="cell-name-inner">${iconHtml}${escapeHtml(entry.name)}</span></td>`;
 
-    const classes = [isPanelActive ? "panel-active" : "", isSelected ? "selected" : ""].filter(Boolean).join(" ");
+    const classes = [isPanelActive ? "panel-active" : "", isSelected ? "selected" : "", nameWarn ? "row-warn" : ""].filter(Boolean).join(" ");
     rows.push(
       `<tr data-name="${escapeHtml(entry.name)}"${classes ? ` class="${classes}"` : ''}>` +
       `<td class="cell-check"><input type="checkbox"${isSelected ? " checked" : ""}></td>` +
       nameCell +
       `<td class="cell-size">${size}</td>` +
       `<td class="cell-actions">` +
+      (nameWarn ? `<span class="ms-sm warn-icon cell-warn-icon" title="Filename is ${utf8Length(entry.name)} bytes, exceeding the ${LONG_FILENAME_BYTES}-byte firmware limit. Rename to a shorter name before writing to device.">warning</span>` : "") +
       (!isDir ? `<button class="btn-icon ghost" data-action="download" title="Download"><span class="ms-sm">download</span></button>` : "") +
       `<button class="btn-icon ghost" data-action="rename" title="Rename"><span class="ms-sm">edit</span></button>` +
       `<button class="btn-icon ghost" data-action="delete" title="Delete"><span class="ms-sm">delete</span></button>` +
@@ -1825,7 +1875,7 @@ el.fileTableBody.addEventListener("click", (e) => {
     return;
   }
 
-  // Folder name click — navigate
+  // Folder/file name click — navigate or open details
   const nameCell = e.target.closest(".cell-name");
   if (nameCell) {
     if (entry.type === "DIR") {
@@ -1835,6 +1885,14 @@ el.fileTableBody.addEventListener("click", (e) => {
       if (isMobileViewport()) openDetailsSheet();
     }
     return;
+  }
+
+  // Click anywhere else on the row (e.g. size cell) — same behaviour
+  if (entry.type === "DIR") {
+    browseFolder(joinChildPath(state.currentPath, entry.name));
+  } else {
+    setPanelState("file", entry);
+    if (isMobileViewport()) openDetailsSheet();
   }
 });
 
@@ -2030,34 +2088,29 @@ function setPanelState(mode, entry) {
 
   // Populate folder info
   if (state.currentPath) {
-    const name = state.currentPath === "E:/" ? "Pixl.js" : getBaseName(state.currentPath) || state.currentPath;
-    el.panelFolderName.textContent = name;
-    el.panelFolderPath.textContent = state.currentPath;
-    el.panelFolderCount.textContent = `${state.entries.length} item${state.entries.length !== 1 ? "s" : ""}`;
+    el.panelFolderName.textContent = "Pixl.js";
+    el.panelFolderPath.textContent = state.drive ? state.drive.name : "E:/";
+    const folderBaseName = state.currentPath === "E:/" ? "Root" : (getBaseName(state.currentPath) || state.currentPath);
+    el.panelCurrentFolderName.textContent = folderBaseName;
+    const fileCount = state.entries.filter(e => e.type === "FILE").length;
+    const dirCount = state.entries.filter(e => e.type === "DIR").length;
+    const parts = [];
+    if (fileCount) parts.push(`${fileCount} file${fileCount !== 1 ? "s" : ""}`);
+    if (dirCount) parts.push(`${dirCount} folder${dirCount !== 1 ? "s" : ""}`);
+    el.panelFolderCount.textContent = state.entries.length ? parts.join(", ") : "Empty";
+    const totalBytes = state.entries.reduce((sum, e) => sum + (e.size || 0), 0);
+    el.panelFolderSize.textContent = totalBytes > 0 ? formatBytes(totalBytes) + " total" : "";
   } else {
     el.panelFolderName.textContent = "Pixl.js";
     el.panelFolderPath.textContent = "";
+    el.panelCurrentFolderName.textContent = "—";
     el.panelFolderCount.textContent = "";
+    el.panelFolderSize.textContent = "";
   }
   // Drive bar updated by renderDrive
 }
 
 // Panel rename button — renames the currently displayed file
-el.panelBtnRename.addEventListener("click", () => {
-  if (!state.drawerEntry) return;
-  openRenameModal(state.drawerEntry.name);
-});
-
-// Panel download button
-el.panelBtnDownload.addEventListener("click", () => {
-  if (!state.drawerEntry || !state.client) return;
-  const filePath = joinChildPath(state.currentPath, state.drawerEntry.name);
-  state.client.readFileData(filePath).then(res => {
-    if (!res.ok) { log(`Download failed: ${res.error}`); return; }
-    triggerDownload(res.data, state.drawerEntry.name);
-  }).catch(err => log(`Download failed: ${err.message}`));
-});
-
 // Details panel close button
 el.btnDetailsClose.addEventListener("click", () => {
   setPanelState("folder");
@@ -2079,17 +2132,6 @@ function openRenameModal(name) {
   el.renameInput.select();
 }
 
-// Panel delete button — deletes the currently displayed file
-el.panelBtnDelete.addEventListener("click", () => {
-  if (!state.drawerEntry) return;
-  el.deleteCount.textContent = "1";
-  el.deleteModalMsg.textContent = `Permanently delete "${state.drawerEntry.name}"? This action cannot be undone.`;
-  // Pre-select the entry so the existing delete confirm handler works
-  state.selectedNames.clear();
-  state.selectedNames.add(state.drawerEntry.name);
-  openModal(el.deleteModal);
-});
-
 // === Log side sheet ===
 
 function openLogSheet() { el.logOverlay.classList.add("open"); }
@@ -2103,15 +2145,15 @@ el.logSheetBackdrop.addEventListener("click", closeLogSheet);
 
 // === Image lightbox ===
 
-function openLightbox(src, alt, info, entry) {
+function openLightbox(src, alt, info, head, tail, entry) {
   el.imgLightboxImg.src = src;
   el.imgLightboxImg.alt = alt || "";
 
   if (info) {
-    const grad = amiiboSeriesGradient(info.gameSeries || info.amiiboSeries);
+    const grad = nfcSeriesGradient(info.gameSeries || info.amiiboSeries);
     const tc = _gradientTextColor(grad);
-    const uid = entry?.meta
-      ? `${(entry.meta.nfcTagHead >>> 0).toString(16).toUpperCase().padStart(8,"0")}:${(entry.meta.nfcTagTail >>> 0).toString(16).toUpperCase().padStart(8,"0")}`
+    const uid = (head != null && tail != null)
+      ? `${(head >>> 0).toString(16).toUpperCase().padStart(8,"0")}:${(tail >>> 0).toString(16).toUpperCase().padStart(8,"0")}`
       : null;
     const rows = [];
     if (info.name) rows.push(["Character", info.name, false]);
@@ -2119,7 +2161,7 @@ function openLightbox(src, alt, info, entry) {
     if (info.gameSeries) rows.push(["Game", info.gameSeries, false]);
     if (info.type) rows.push(["Type", info.type, false]);
     if (info.release?.na) rows.push(["Released", info.release.na, false]);
-    if (uid) rows.push(["UID", uid, true]);
+    if (uid) rows.push(["Figure ID", uid, true]);
     if (entry?.size != null) rows.push(["Size", formatBytes(entry.size), false]);
     if (entry?.name) rows.push(["File", entry.name, false]);
 
