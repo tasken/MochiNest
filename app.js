@@ -1660,7 +1660,7 @@ function wireNfcTagCopyButtons() {
 
 function applyNfcTagDisplay(entry, head, tail) {
   if ((head >>> 0) === 0 && (tail >>> 0) === 0) {
-    el.panelNfcTagContent.innerHTML = `<div class="details-nfc-row"><span class="details-nfc-label">UID</span><span class="details-nfc-value" style="color:#9ca3af">Not an NFC tag file</span></div>`;
+    el.panelNfcTagContent.innerHTML = `<div class="details-nfc-row"><span class="details-nfc-label">Figure ID</span><span class="details-nfc-value" style="color:#9ca3af">Not an NFC tag file</span></div>`;
     return;
   }
   const key = `${head >>> 0}:${tail >>> 0}`;
@@ -1672,7 +1672,7 @@ function applyNfcTagDisplay(entry, head, tail) {
     return;
   }
   const uidStr = `${(head >>> 0).toString(16).toUpperCase().padStart(8,"0")}:${(tail >>> 0).toString(16).toUpperCase().padStart(8,"0")}`;
-  el.panelNfcTagContent.innerHTML = `<div class="details-nfc-row"><span class="details-nfc-label"># Figure ID</span><span class="details-nfc-value details-nfc-mono">${escapeHtml(uidStr)}</span></div>`;
+  el.panelNfcTagContent.innerHTML = `<div class="details-nfc-row"><span class="details-nfc-label">Figure ID</span><span class="details-nfc-value details-nfc-mono">${escapeHtml(uidStr)}</span></div>`;
   lookupNfcTag(head, tail).then(info => {
     if (state.drawerEntry !== entry) return;
     el.panelNfcTagContent.innerHTML = renderNfcTagField(head, tail, info);
@@ -1712,7 +1712,7 @@ function _applyNfcHero(entry, info, head, tail) {
     const wrap = document.createElement("div");
     wrap.className = "details-hero-img-wrap";
     const img = document.createElement("img");
-    img.src = info.image;
+    img.src = encodeURI(info.image);
     img.alt = info.name || entry.name;
     img.loading = "lazy";
     const zoomIcon = document.createElement("span");
@@ -2067,7 +2067,7 @@ function setPanelState(mode, entry) {
       if (metaHead != null) {
         applyNfcTagDisplay(entry, metaHead, metaTail);
       } else if (state.client) {
-        el.panelNfcTagContent.innerHTML = `<div class="details-nfc-row"><span class="details-nfc-label">UID</span><span class="details-nfc-value" style="color:#9ca3af">Loading\u2026</span></div>`;
+        el.panelNfcTagContent.innerHTML = `<div class="details-nfc-row"><span class="details-nfc-label">Figure ID</span><span class="details-nfc-value" style="color:#9ca3af">Loading\u2026</span></div>`;
         const filePath = joinChildPath(state.currentPath, entry.name);
         state.client.readFileData(filePath).then(res => {
           if (state.drawerEntry !== entry) return;
@@ -2077,13 +2077,13 @@ function setPanelState(mode, entry) {
             const tail = dv.getUint32(88, false);
             applyNfcTagDisplay(entry, head, tail);
           } else {
-            el.panelNfcTagContent.innerHTML = `<div class="details-nfc-row"><span class="details-nfc-label">UID</span><span class="details-nfc-value" style="color:#9ca3af">Not a valid NFC file</span></div>`;
+            el.panelNfcTagContent.innerHTML = `<div class="details-nfc-row"><span class="details-nfc-label">Figure ID</span><span class="details-nfc-value" style="color:#9ca3af">Not a valid NFC file</span></div>`;
           }
         }).catch(() => {
           if (state.drawerEntry === entry) el.panelNfcTagContent.innerHTML = `<div class="details-nfc-row"><span class="details-nfc-label">Error</span><span class="details-nfc-value" style="color:#e11d48">Failed to read file</span></div>`;
         });
       } else {
-        el.panelNfcTagContent.innerHTML = `<div class="details-nfc-row"><span class="details-nfc-label">UID</span><span class="details-nfc-value" style="color:#9ca3af">Not connected</span></div>`;
+        el.panelNfcTagContent.innerHTML = `<div class="details-nfc-row"><span class="details-nfc-label">Figure ID</span><span class="details-nfc-value" style="color:#9ca3af">Not connected</span></div>`;
       }
     }
 
@@ -2186,8 +2186,8 @@ function openLightbox(src, alt, info, head, tail, entry) {
     const rowsHtml = rows.map(([label, value, mono]) =>
       `<div class="img-lightbox-row">` +
       `<span class="img-lightbox-row-label">${escapeHtml(label)}</span>` +
-      `<span class="img-lightbox-row-value${mono ? " img-lightbox-row-mono" : ""}"` +
-      (mono ? ` title="Copy" onclick="navigator.clipboard?.writeText(this.textContent)"` : "") +
+      `<span class="img-lightbox-row-value${mono ? " img-lightbox-row-mono js-copy-id" : ""}"` +
+      (mono ? ` title="Copy"` : "") +
       `>${escapeHtml(value)}</span>` +
       `</div>`
     ).join("");
@@ -2205,6 +2205,9 @@ function openLightbox(src, alt, info, head, tail, entry) {
     el.imgLightboxSide.innerHTML = "";
   }
 
+  el.imgLightboxSide.querySelectorAll(".js-copy-id").forEach(node => {
+    node.addEventListener("click", () => navigator.clipboard?.writeText(node.textContent || ""));
+  });
   el.imgLightbox.hidden = false;
 }
 
