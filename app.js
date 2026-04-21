@@ -1640,7 +1640,7 @@ function nfcSeriesGradient(series) {
 function renderNfcTagField(head, tail, info) {
   const uid = `${(head >>> 0).toString(16).toUpperCase().padStart(8, "0")}:${(tail >>> 0).toString(16).toUpperCase().padStart(8, "0")}`;
   if (!info) {
-    return `<div class="details-nfc-row"><span class="details-nfc-label">Figure ID</span><span class="details-nfc-value details-nfc-mono" title="Copy ID" onclick="navigator.clipboard?.writeText(this.textContent)">${escapeHtml(uid)}</span></div>`;
+    return `<div class="details-nfc-row"><span class="details-nfc-label">Figure ID</span><span class="details-nfc-value details-nfc-mono js-copy-id" title="Copy ID">${escapeHtml(uid)}</span></div>`;
   }
   const rows = [];
   if (info.name) rows.push(`<div class="details-nfc-row"><span class="details-nfc-label">Character</span><span class="details-nfc-value">${escapeHtml(info.name)}</span></div>`);
@@ -1648,8 +1648,14 @@ function renderNfcTagField(head, tail, info) {
   if (info.gameSeries) rows.push(`<div class="details-nfc-row"><span class="details-nfc-label">Game</span><span class="details-nfc-value">${escapeHtml(info.gameSeries)}</span></div>`);
   if (info.type) rows.push(`<div class="details-nfc-row"><span class="details-nfc-label">Type</span><span class="details-nfc-value">${escapeHtml(info.type)}</span></div>`);
   if (info.release?.na) rows.push(`<div class="details-nfc-row"><span class="details-nfc-label">Released</span><span class="details-nfc-value">${escapeHtml(info.release.na)}</span></div>`);
-  rows.push(`<div class="details-nfc-row"><span class="details-nfc-label">Figure ID</span><span class="details-nfc-value details-nfc-mono" title="Copy ID" onclick="navigator.clipboard?.writeText(this.textContent)">${escapeHtml(uid)}</span></div>`);
+  rows.push(`<div class="details-nfc-row"><span class="details-nfc-label">Figure ID</span><span class="details-nfc-value details-nfc-mono js-copy-id" title="Copy ID">${escapeHtml(uid)}</span></div>`);
   return rows.join("");
+}
+
+function wireNfcTagCopyButtons() {
+  el.panelNfcTagContent.querySelectorAll(".js-copy-id").forEach(node => {
+    node.addEventListener("click", () => navigator.clipboard?.writeText(node.textContent || ""));
+  });
 }
 
 function applyNfcTagDisplay(entry, head, tail) {
@@ -1661,6 +1667,7 @@ function applyNfcTagDisplay(entry, head, tail) {
   if (_nfcTagCache.has(key)) {
     const info = _nfcTagCache.get(key);
     el.panelNfcTagContent.innerHTML = renderNfcTagField(head, tail, info);
+    wireNfcTagCopyButtons();
     _applyNfcHero(entry, info, head, tail);
     return;
   }
@@ -1669,6 +1676,7 @@ function applyNfcTagDisplay(entry, head, tail) {
   lookupNfcTag(head, tail).then(info => {
     if (state.drawerEntry !== entry) return;
     el.panelNfcTagContent.innerHTML = renderNfcTagField(head, tail, info);
+    wireNfcTagCopyButtons();
     _applyNfcHero(entry, info, head, tail);
   });
 }
@@ -1700,9 +1708,19 @@ function _applyNfcHero(entry, info, head, tail) {
 
   // Image
   if (info.image) {
-    el.detailsHeroImgArea.innerHTML =
-      `<div class="details-hero-img-wrap"><img src="${encodeURI(info.image)}" alt="${escapeHtml(info.name || entry.name)}" loading="lazy"><span class="details-hero-zoom-icon"></span></div>`;
-    el.detailsHeroImgArea.querySelector(".details-hero-img-wrap").addEventListener("click", () => {
+    el.detailsHeroImgArea.textContent = "";
+    const wrap = document.createElement("div");
+    wrap.className = "details-hero-img-wrap";
+    const img = document.createElement("img");
+    img.src = info.image;
+    img.alt = info.name || entry.name;
+    img.loading = "lazy";
+    const zoomIcon = document.createElement("span");
+    zoomIcon.className = "details-hero-zoom-icon";
+    wrap.appendChild(img);
+    wrap.appendChild(zoomIcon);
+    el.detailsHeroImgArea.appendChild(wrap);
+    wrap.addEventListener("click", () => {
       openLightbox(info.image, info.name || entry.name, info, head, tail, entry);
     });
   }
@@ -2014,7 +2032,7 @@ function setPanelState(mode, entry) {
     // Populate file fields
     el.panelFileName.textContent = entry.name;
     el.panelFileSize.textContent = formatBytes(entry.size);
-    el.detailsKind.textContent = entry.type === "FILE" ? "Binary file" : "Folder";
+    el.detailsKind.textContent = entry.type === "FILE" ? "File" : "Folder";
     const fullPath = joinChildPath(state.currentPath, entry.name);
     el.detailsFilePath.textContent = fullPath;
     if (el.detailsPathInRow) el.detailsPathInRow.textContent = fullPath;
