@@ -371,14 +371,22 @@ export class PixlToolsClient {
   }
 
   async enterDfu() {
+    // Set flag before sending: device reboots immediately on ENTER_DFU and
+    // disconnects before (or without) sending a notification response, so
+    // _onDisconnect fires while _sendCommand is still pending. Marking as
+    // intentional here prevents the reconnect timer from starting.
+    this._intentionalDisconnect = true;
     try {
       await this._sendCommand(0x02);
-      // Device will immediately reboot into DFU bootloader and disconnect.
-      // Mark as intentional so the NUS reconnect timer doesn't start.
-      this._intentionalDisconnect = true;
       return { ok: true, error: null };
     } catch (err) {
-      return { ok: false, error: err.message };
+      // Expected: "Device disconnected." due to reboot. Any other error is real.
+      const msg = err.message || "";
+      if (msg.includes("disconnected") || msg.includes("timed out") || msg.includes("Not connected")) {
+        return { ok: true, error: null };
+      }
+      this._intentionalDisconnect = false;
+      return { ok: false, error: msg };
     }
   }
 
