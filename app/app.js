@@ -3075,6 +3075,7 @@ const dfuState = {
 // ── Package utilities ─────────────────────────────────────────────────────────
 
 async function resolveOtaZip(fileBlob, fileName) {
+  log(`[DFU] Opening package: ${fileName}`, "cmd");
   const lower = (fileName || "").toLowerCase();
   const inferredVariant = lower.includes("_lcd") ? "LCD"
     : lower.includes("_oled") ? "OLED"
@@ -3082,12 +3083,14 @@ async function resolveOtaZip(fileBlob, fileName) {
 
   const zip = await window.JSZip.loadAsync(fileBlob);
   if (zip.file("manifest.json")) {
+    log("[DFU] Package is a direct DFU zip.", "ok");
     return { otaBlob: fileBlob, variant: inferredVariant };
   }
 
   const nested = Object.values(zip.files).find(e => !e.dir && e.name.toLowerCase().endsWith(".zip"));
   if (!nested) throw new Error("No update package found. Try a DFU .zip or a full Pixl release .zip.");
 
+  log(`[DFU] Extracting inner package: ${nested.name}`, "ok");
   const innerLower = nested.name.toLowerCase();
   const innerVariant = inferredVariant
     ?? (innerLower.includes("_lcd") ? "LCD" : innerLower.includes("_oled") ? "OLED" : null);
@@ -3096,6 +3099,7 @@ async function resolveOtaZip(fileBlob, fileName) {
 }
 
 async function loadDfuImages(zipBlob) {
+  log("[DFU] Parsing DFU manifest...", "cmd");
   const zip = await window.JSZip.loadAsync(zipBlob);
   const manifestFile = zip.file("manifest.json");
   if (!manifestFile) throw new Error("This doesn't look like a valid DFU package (manifest.json is missing).");
@@ -3119,10 +3123,15 @@ async function loadDfuImages(zipBlob) {
     return null;
   }
 
-  return {
+  const images = {
     baseImage: await getImage(["softdevice", "bootloader", "softdevice_bootloader"]),
     appImage: await getImage(["application"]),
   };
+  const parts = [];
+  if (images.baseImage) parts.push(images.baseImage.type);
+  if (images.appImage) parts.push("application");
+  log(`[DFU] Images loaded: ${parts.join(", ") || "none"}`, "ok");
+  return images;
 }
 
 // ── Dev mock helpers ──────────────────────────────────────────────────────────
@@ -3328,11 +3337,14 @@ async function fetchDfuRelease() {
       await new Promise(r => setTimeout(r, 400));
       dfuState.release = MOCK_RELEASE;
     } else {
+      log("[DFU] Fetching latest release...", "cmd");
       const resp = await fetch("https://api.github.com/repos/solosky/pixl.js/releases/latest");
       if (!resp.ok) throw new Error(`GitHub API error ${resp.status}`);
       dfuState.release = await resp.json();
+      log(`[DFU] Latest release: ${dfuState.release.tag_name}`, "ok");
     }
   } catch (err) {
+    log(`[DFU] Release fetch failed: ${err.message}`, "err");
     dfuState.release = { error: err.message };
   } finally {
     dfuState.releaseLoading = false;
@@ -3476,10 +3488,13 @@ async function runDfuTransfer() {
     } else {
       let rawBlob;
       if (src.type === "url") {
+        log(`[DFU] Downloading: ${src.name}`, "cmd");
         const resp = await fetch(src.url);
         if (!resp.ok) throw new Error(`Download failed (${resp.status}). Check your connection and try again.`);
         rawBlob = await resp.blob();
+        log(`[DFU] Download complete.`, "ok");
       } else {
+        log(`[DFU] Using local file: ${src.name}`, "cmd");
         rawBlob = src.file;
       }
 
@@ -3488,6 +3503,7 @@ async function runDfuTransfer() {
       if (!images.baseImage && !images.appImage) throw new Error("Nothing to install. The package has no firmware images.");
 
       dfuSetStage("entering_dfu");
+      log("[DFU] Rebooting device into update mode...", "cmd");
       const enterRes = await state.client.enterDfu();
       if (!enterRes.ok) throw new Error(`Couldn't switch to update mode: ${enterRes.error}`);
 
@@ -3496,33 +3512,43 @@ async function runDfuTransfer() {
       if (dfuState.cancelFlag) throw new Error("Cancelled");
 
       dfuSetStage("selecting");
+      log("[DFU] Connecting to DfuTarg...", "cmd");
       const dfu = new window.SecureDfu(window.CRC32.buf);
 
+      let _dfuLastStage = null;
       dfu.addEventListener(window.SecureDfu.EVENT_PROGRESS, ({ object, currentBytes, totalBytes }) => {
         const isInit = object === "init";
         const stageId = isInit ? "uploading_init" : "uploading_firmware";
         const pct = totalBytes > 0 ? (currentBytes / totalBytes) * 100 : 0;
+        if (stageId !== _dfuLastStage) {
+          _dfuLastStage = stageId;
+          log(`[DFU] Uploading: ${isInit ? "init packet" : "firmware"}`, "cmd");
+        }
         dfuSetStage(stageId, { progress: pct, progressFile: isInit ? "Init packet" : "Firmware" });
       });
 
       const device = await dfu.requestDevice(false, [
         { services: [window.SecureDfu.SERVICE_UUID], name: "DfuTarg" },
       ]);
+      log("[DFU] Connected to DfuTarg.", "ok");
       if (dfuState.cancelFlag) throw new Error("Cancelled");
 
       dfuSetStage("uploading_init", { progress: 0, progressFile: "Init packet" });
 
       if (images.baseImage) {
         await dfu.update(device, images.baseImage.initData, images.baseImage.imageData);
+        log(`[DFU] ${images.baseImage.type} uploaded.`, "ok");
       }
       if (images.appImage) {
         await dfu.update(device, images.appImage.initData, images.appImage.imageData);
+        log("[DFU] Application uploaded.", "ok");
       }
     }
 
     dfuSetStage("rebooting");
     await new Promise(r => setTimeout(r, 400));
 
+    log("[DFU] Firmware updated successfully.", "ok");
     dfuState.phase = "success";
     dfuShowSuccessView();
     updateControls();
@@ -3532,8 +3558,10 @@ async function runDfuTransfer() {
       || err.name === "NotFoundError"
       || err.message?.toLowerCase().includes("cancel");
     if (cancelled) {
+      log("[DFU] Update cancelled.", "err");
       closeDfuModal();
     } else {
+      log(`[DFU] Update failed: ${err.message}`, "err");
       dfuState.phase = "failed";
       dfuShowFailedView(err.message);
       updateControls();
