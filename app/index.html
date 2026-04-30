@@ -58,12 +58,14 @@
     <span class="topbar-spacer"></span>
     <span class="topbar-drive" id="topbarDrive" hidden>
       <span class="ms-sm topbar-drive-icon">hard_drive</span>
-      <span id="topbarDriveInfo">—</span>
+      <span id="topbarDriveInfo"></span>
     </span>
     <span class="topbar-action-sep" id="topbarActionSep" hidden></span>
-    <button class="btn-icon ghost" id="btnFormat" title="Format drive E:" aria-label="Format drive" hidden><span class="ms">mop</span></button>
+    <button class="topbar-chip" id="btnUpdateFirmware" title="Update firmware" aria-label="Update firmware" hidden>
+      <span class="ms-sm">memory</span>Firmware<span class="topbar-update-dot" id="dfuUpdateDot" hidden></span>
+    </button>
+    <button class="btn-icon ghost" id="btnFormat" title="Format drive" aria-label="Format drive" hidden><span class="ms">mop</span></button>
     <button class="btn-icon ghost" id="btnNormalize" title="Lowercase filenames" aria-label="Lowercase filenames" hidden><span class="ms">match_case</span></button>
-    <button class="btn-icon ghost" id="btnUpdateFirmware" title="Update firmware" aria-label="Update firmware" hidden><span class="ms">system_update</span></button>
     <button class="btn-icon ghost" id="btnLogToggle" title="Protocol log" aria-label="Toggle protocol log" hidden><span class="ms">terminal</span></button>
     <span class="topbar-error" id="connError" hidden></span>
   </header>
@@ -116,7 +118,7 @@
           <div class="sidebar-section-label">Folder</div>
           <div class="sidebar-storage-header">
             <span class="sidebar-folder-icon ms-sm">folder</span>
-            <span class="sidebar-folder-display-name" id="panelCurrentFolderName">—</span>
+            <span class="sidebar-folder-display-name" id="panelCurrentFolderName"></span>
             <span class="sidebar-storage-count" id="panelFolderCount"></span>
           </div>
           <div class="sidebar-folder-size" id="panelFolderSize"></div>
@@ -305,7 +307,7 @@
             <div class="details-info-rows">
               <div class="details-info-row">
                 <span class="details-info-label">Kind</span>
-                <span id="detailsKind" class="details-info-value">—</span>
+                <span id="detailsKind" class="details-info-value"></span>
               </div>
               <div class="details-info-row">
                 <span class="details-info-label">Size</span>
@@ -432,52 +434,106 @@
   </div>
 </div>
 
-<!-- DFU confirm modal -->
-<div id="dfuConfirmModal" class="modal-overlay">
-  <div class="modal-box">
+<!-- DFU modal — confirm + progress in one surface -->
+<div id="dfuModal" class="modal-overlay">
+  <div class="modal-box dfu-modal-box">
     <div class="modal-header">
       <span class="modal-header-title">Update firmware</span>
-      <button class="modal-close" data-modal-close aria-label="Close"><span class="ms">close</span></button>
+      <button class="modal-close" id="btnDfuClose" aria-label="Close"><span class="ms">close</span></button>
     </div>
-    <div class="modal-body">
-      <div class="modal-icon-badge warning"><span class="ms">system_update</span></div>
-      <div class="modal-body-title">Your device will reboot into update mode</div>
-      <p>The Pixl.js will disconnect and restart as a DFU bootloader. Your browser may ask you to select the device again.</p>
-      <div class="dfu-variant-row" id="dfuVariantRow">
-        <span class="dfu-variant-label">Variant</span>
-        <span class="dfu-variant-value" id="dfuVariantValue">—</span>
+
+    <!-- Confirm section -->
+    <div class="dfu-modal-body" id="dfuConfirmSection">
+      <p class="dfu-intro">Your Pixl.js will restart into update mode. If the browser asks you to pick a device again, choose <code class="dfu-code">DfuTarg</code> and you're set.</p>
+
+      <div class="dfu-source-hdr">
+        <span class="ms-sm">code</span>
+        <a class="dfu-source-label" href="https://github.com/solosky/pixl.js/releases" target="_blank" rel="noopener">solosky/pixl.js releases</a>
+        <button class="dfu-link-btn" id="btnDfuRefreshRelease">Refresh</button>
       </div>
-      <div class="dfu-variant-picker" id="dfuVariantPicker" hidden>
-        <span class="dfu-variant-picker-label">Select the display type of your device:</span>
-        <label class="modal-choice-option"><input type="radio" name="dfuVariant" value="LCD"> LCD</label>
-        <label class="modal-choice-option"><input type="radio" name="dfuVariant" value="OLED"> OLED</label>
+      <div id="dfuReleaseContainer" class="dfu-release-container"></div>
+
+      <div class="dfu-divider"><span>OR USE LOCAL FILE</span></div>
+
+      <button class="dfu-pick-btn" id="btnDfuPickFile"><span class="ms-sm">folder_zip</span> Pick a .zip from your computer</button>
+      <div class="dfu-picked-file" id="dfuPickedFile" hidden>
+        <span class="ms-sm">folder_zip</span>
+        <span class="dfu-picked-name" id="dfuPickedName"></span>
+        <button class="dfu-link-btn" id="btnDfuChangeFile">Change</button>
       </div>
-      <div class="modal-actions">
-        <button class="btn-labeled ghost" data-modal-close>Cancel</button>
-        <button class="btn-labeled primary" id="btnDfuConfirmOk">Update</button>
+
+      <div id="dfuVariantSection" hidden>
+        <div class="dfu-section-label">VARIANT</div>
+        <div class="dfu-variant-detected" id="dfuVariantDetected" hidden>
+          <span class="ms-sm">check_circle</span>
+          <span>Detected: <strong id="dfuVariantDetectedName"></strong></span>
+        </div>
+        <div id="dfuVariantUnknown" hidden>
+          <div class="dfu-variant-warn">
+            <span class="ms-sm">warning</span>
+            <span>Couldn't detect the display type from the filename. Which screen does your Pixl have?</span>
+          </div>
+          <div class="dfu-variant-grid">
+            <button class="dfu-variant-btn" id="btnDfuVariantLCD" data-variant="LCD">LCD</button>
+            <button class="dfu-variant-btn" id="btnDfuVariantOLED" data-variant="OLED">OLED</button>
+          </div>
+        </div>
       </div>
+    </div>
+
+    <!-- Progress section -->
+    <div class="dfu-modal-body" id="dfuProgressSection" hidden>
+      <div class="dfu-status-subhead" id="dfuStatusSubhead">IN PROGRESS</div>
+      <div class="dfu-active-stage">
+        <span class="modal-icon-badge primary" id="dfuActiveIcon"><span class="ms">sync</span></span>
+        <span class="dfu-active-label" id="dfuActiveLabel"></span>
+      </div>
+      <div class="dfu-hint-box" id="dfuSelectingHint" hidden>
+        A browser dialog should appear. Select <code class="dfu-code">DfuTarg</code> from the list. If you don't see it, wait a moment and try again.
+      </div>
+      <div class="dfu-progress-bar-wrap" id="dfuProgressBarWrap" hidden>
+        <div class="dfu-progress-bar"><div class="dfu-progress-fill" id="dfuProgressFill"></div></div>
+        <div class="dfu-progress-meta">
+          <span id="dfuProgressFile"></span>
+          <span class="dfu-progress-pct" id="dfuProgressPct"></span>
+        </div>
+      </div>
+      <ol class="dfu-stage-list" id="dfuStageList"></ol>
+      <div class="dfu-result-box dfu-result-error" id="dfuErrorBox" hidden></div>
+      <div class="dfu-result-box dfu-result-success" id="dfuSuccessBox" hidden>
+        <div class="dfu-result-title">All done! ✦</div>
+        <p>Your Pixl.js is back up. Reconnect to pick up where you left off.</p>
+      </div>
+    </div>
+
+    <!-- Warning section (shown before confirming the transfer) -->
+    <div class="dfu-modal-body" id="dfuWarnSection" hidden>
+      <div class="modal-icon-badge danger"><span class="ms">warning</span></div>
+      <div class="modal-body-title">Proceed at your own risk</div>
+      <p class="dfu-intro">Firmware updates can fail and leave your device unrecoverable. There is no guarantee and no warranty. If the update fails partway through, recovery may not be possible.</p>
+    </div>
+
+    <!-- Footers (one visible at a time) -->
+    <div class="dfu-modal-footer" id="dfuFooterConfirm">
+      <button class="btn-labeled ghost" id="btnDfuCancelConfirm">Cancel</button>
+      <button class="btn-labeled primary" id="btnDfuStart" disabled><span class="ms-sm">upload</span> Start update</button>
+    </div>
+    <div class="dfu-modal-footer" id="dfuFooterWarn" hidden>
+      <button class="btn-labeled ghost" id="btnDfuBackToConfirm">Back</button>
+      <button class="btn-labeled danger" id="btnDfuProceed" disabled></button>
+    </div>
+    <div class="dfu-modal-footer" id="dfuFooterProgress" hidden>
+      <button class="btn-labeled danger" id="btnDfuCancelTransfer">Cancel</button>
+    </div>
+    <div class="dfu-modal-footer" id="dfuFooterFailed" hidden>
+      <button class="btn-labeled ghost" id="btnDfuReconnect">Skip and reconnect</button>
+      <button class="btn-labeled primary" id="btnDfuRetry"><span class="ms-sm">replay</span> Retry</button>
+    </div>
+    <div class="dfu-modal-footer" id="dfuFooterSuccess" hidden>
+      <button class="btn-labeled primary" id="btnDfuReconnectSuccess"><span class="ms-sm">bluetooth</span> Reconnect</button>
     </div>
   </div>
 </div>
-
-<!-- DFU progress overlay -->
-<div class="dfu-overlay" id="dfuOverlay" hidden role="dialog" aria-modal="true" aria-label="Firmware update in progress">
-  <div class="dfu-overlay-card">
-    <div class="dfu-overlay-icon" id="dfuOverlayIcon"><span class="ms">system_update</span></div>
-    <div class="dfu-overlay-title" id="dfuOverlayTitle">Updating firmware…</div>
-    <div class="dfu-stage" id="dfuStage"></div>
-    <div class="dfu-progress-wrap" id="dfuProgressWrap" hidden>
-      <div class="dfu-progress-bar"><div class="dfu-progress-fill" id="dfuProgressFill"></div></div>
-      <span class="dfu-progress-pct" id="dfuProgressPct"></span>
-    </div>
-    <div class="dfu-overlay-actions" id="dfuOverlayActions" hidden>
-      <button class="btn-labeled ghost" id="btnDfuCancel">Cancel</button>
-      <button class="btn-labeled primary" id="btnDfuRetry" hidden>Retry</button>
-    </div>
-    <div class="dfu-error-detail" id="dfuErrorDetail" hidden></div>
-  </div>
-</div>
-
 <input id="dfuFileInput" type="file" hidden accept=".zip">
 
 <div id="toastContainer" class="toast-container" aria-live="polite"></div>
