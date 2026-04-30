@@ -35,6 +35,7 @@ const VFS_ERRORS = {
 
 const CMD_NAMES = {
   0x01: "VERSION_INFO",
+  0x02: "ENTER_DFU",
   0x10: "DRIVE_LIST",
   0x11: "DRIVE_FORMAT",
   0x12: "FILE_OPEN",
@@ -369,6 +370,18 @@ export class PixlToolsClient {
     return { ok: true, error: null, data: null };
   }
 
+  async enterDfu() {
+    try {
+      await this._sendCommand(0x02);
+      // Device will immediately reboot into DFU bootloader and disconnect.
+      // Mark as intentional so the NUS reconnect timer doesn't start.
+      this._intentionalDisconnect = true;
+      return { ok: true, error: null };
+    } catch (err) {
+      return { ok: false, error: err.message };
+    }
+  }
+
   async readFileData(path) {
     const openRes = await this.openFile(path, "r");
     if (!openRes.ok) return { ok: false, error: openRes.error, data: null };
@@ -598,6 +611,8 @@ export class DevMockClient {
     };
     return { ok: true, data: sortEntries(fs[path] ?? []) };
   }
+
+  async enterDfu() { return { ok: true, error: null }; }
 
   // Mutations always succeed but are not reflected in readFolder (static mock).
   async createFolder()    { return { ok: true, data: null }; }

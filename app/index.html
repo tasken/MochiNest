@@ -63,6 +63,7 @@
     <span class="topbar-action-sep" id="topbarActionSep" hidden></span>
     <button class="btn-icon ghost" id="btnFormat" title="Format drive E:" aria-label="Format drive" hidden><span class="ms">mop</span></button>
     <button class="btn-icon ghost" id="btnNormalize" title="Lowercase filenames" aria-label="Lowercase filenames" hidden><span class="ms">match_case</span></button>
+    <button class="btn-icon ghost" id="btnUpdateFirmware" title="Update firmware" aria-label="Update firmware" hidden><span class="ms">system_update</span></button>
     <button class="btn-icon ghost" id="btnLogToggle" title="Protocol log" aria-label="Toggle protocol log" hidden><span class="ms">terminal</span></button>
     <span class="topbar-error" id="connError" hidden></span>
   </header>
@@ -431,8 +432,59 @@
   </div>
 </div>
 
+<!-- DFU confirm modal -->
+<div id="dfuConfirmModal" class="modal-overlay">
+  <div class="modal-box">
+    <div class="modal-header">
+      <span class="modal-header-title">Update firmware</span>
+      <button class="modal-close" data-modal-close aria-label="Close"><span class="ms">close</span></button>
+    </div>
+    <div class="modal-body">
+      <div class="modal-icon-badge warning"><span class="ms">system_update</span></div>
+      <div class="modal-body-title">Your device will reboot into update mode</div>
+      <p>The Pixl.js will disconnect and restart as a DFU bootloader. Your browser may ask you to select the device again.</p>
+      <div class="dfu-variant-row" id="dfuVariantRow">
+        <span class="dfu-variant-label">Variant</span>
+        <span class="dfu-variant-value" id="dfuVariantValue">—</span>
+      </div>
+      <div class="dfu-variant-picker" id="dfuVariantPicker" hidden>
+        <span class="dfu-variant-picker-label">Select the display type of your device:</span>
+        <label class="modal-choice-option"><input type="radio" name="dfuVariant" value="LCD"> LCD</label>
+        <label class="modal-choice-option"><input type="radio" name="dfuVariant" value="OLED"> OLED</label>
+      </div>
+      <div class="modal-actions">
+        <button class="btn-labeled ghost" data-modal-close>Cancel</button>
+        <button class="btn-labeled primary" id="btnDfuConfirmOk">Update</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- DFU progress overlay -->
+<div class="dfu-overlay" id="dfuOverlay" hidden role="dialog" aria-modal="true" aria-label="Firmware update in progress">
+  <div class="dfu-overlay-card">
+    <div class="dfu-overlay-icon" id="dfuOverlayIcon"><span class="ms">system_update</span></div>
+    <div class="dfu-overlay-title" id="dfuOverlayTitle">Updating firmware…</div>
+    <div class="dfu-stage" id="dfuStage"></div>
+    <div class="dfu-progress-wrap" id="dfuProgressWrap" hidden>
+      <div class="dfu-progress-bar"><div class="dfu-progress-fill" id="dfuProgressFill"></div></div>
+      <span class="dfu-progress-pct" id="dfuProgressPct"></span>
+    </div>
+    <div class="dfu-overlay-actions" id="dfuOverlayActions" hidden>
+      <button class="btn-labeled ghost" id="btnDfuCancel">Cancel</button>
+      <button class="btn-labeled primary" id="btnDfuRetry" hidden>Retry</button>
+    </div>
+    <div class="dfu-error-detail" id="dfuErrorDetail" hidden></div>
+  </div>
+</div>
+
+<input id="dfuFileInput" type="file" hidden accept=".zip">
+
 <div id="toastContainer" class="toast-container" aria-live="polite"></div>
 
+<script src="./vendor/secure-dfu.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/jszip@3/dist/jszip.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/crc-32@1/crc32.js"></script>
 <script type="module" src="./app.js"></script>
 </body>
 </html>

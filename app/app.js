@@ -237,6 +237,26 @@ const el = {
   sanitizeModalNone: document.getElementById("sanitizeModalNone"),
   sanitizeNonePath: document.getElementById("sanitizeNonePath"),
   btnSanitizeNoneConfirm: document.getElementById("btnSanitizeNoneConfirm"),
+
+  // DFU
+  btnUpdateFirmware: document.getElementById("btnUpdateFirmware"),
+  dfuFileInput: document.getElementById("dfuFileInput"),
+  dfuConfirmModal: document.getElementById("dfuConfirmModal"),
+  dfuVariantRow: document.getElementById("dfuVariantRow"),
+  dfuVariantValue: document.getElementById("dfuVariantValue"),
+  dfuVariantPicker: document.getElementById("dfuVariantPicker"),
+  btnDfuConfirmOk: document.getElementById("btnDfuConfirmOk"),
+  dfuOverlay: document.getElementById("dfuOverlay"),
+  dfuOverlayIcon: document.getElementById("dfuOverlayIcon"),
+  dfuOverlayTitle: document.getElementById("dfuOverlayTitle"),
+  dfuStage: document.getElementById("dfuStage"),
+  dfuProgressWrap: document.getElementById("dfuProgressWrap"),
+  dfuProgressFill: document.getElementById("dfuProgressFill"),
+  dfuProgressPct: document.getElementById("dfuProgressPct"),
+  dfuOverlayActions: document.getElementById("dfuOverlayActions"),
+  btnDfuCancel: document.getElementById("btnDfuCancel"),
+  btnDfuRetry: document.getElementById("btnDfuRetry"),
+  dfuErrorDetail: document.getElementById("dfuErrorDetail"),
 };
 
 function validateElementBindings(bindings) {
@@ -444,7 +464,7 @@ function setConnState(newState) {
   // Topbar connected elements — keep visible during reconnecting
   setHiddenAll(!(connected || reconnecting),
     el.topbarBadge, el.topbarDrive, el.topbarActionSep, el.btnFormat,
-    el.btnRefresh, el.btnNewFolder, el.btnNormalize, el.btnLogToggle,
+    el.btnRefresh, el.btnNewFolder, el.btnNormalize, el.btnUpdateFirmware, el.btnLogToggle,
     el.btnSheetInfo, el.btnSheetUpload);
   if (!(connected || reconnecting)) el.btnMobileUp.hidden = true;
 
@@ -937,7 +957,7 @@ document.addEventListener("keydown", e => {
 });
 
 // Close modals on backdrop click
-for (const modal of [el.confirmModal, el.inputModal, el.sanitizeModalNone, el.uploadWarnModal]) {
+for (const modal of [el.confirmModal, el.inputModal, el.sanitizeModalNone, el.uploadWarnModal, el.dfuConfirmModal]) {
   modal.addEventListener("click", (e) => { if (e.target === modal) closeModal(modal); });
 }
 
@@ -949,11 +969,13 @@ function updateControls() {
   const atRoot = !state.currentPath || state.currentPath === "E:/";
   const syncing = state.syncState === "scanning";
   const queueHasItems = hasQueuedUploadState();
-  el.btnRefresh.disabled = !connected || uploading;
-  el.btnNewFolder.disabled = !connected || uploading;
-  el.sidebarDropZone.setAttribute("aria-disabled", String(!connected || uploading || syncing));
-  el.btnNormalize.disabled = !connected || uploading;
-  el.btnFormat.disabled = !connected || uploading;
+  const dfuActive = dfuState.phase !== "idle";
+  el.btnRefresh.disabled = !connected || uploading || dfuActive;
+  el.btnNewFolder.disabled = !connected || uploading || dfuActive;
+  el.sidebarDropZone.setAttribute("aria-disabled", String(!connected || uploading || syncing || dfuActive));
+  el.btnNormalize.disabled = !connected || uploading || dfuActive;
+  el.btnFormat.disabled = !connected || uploading || dfuActive;
+  el.btnUpdateFirmware.disabled = !connected || uploading || dfuActive;
   el.btnPickFolder.disabled = !connected || uploading || syncing;
   el.btnPickFiles.disabled = !connected || uploading || syncing;
   el.btnSync.disabled = !connected || uploading || syncing || !queueHasItems;
@@ -2993,6 +3015,242 @@ el.btnUploadClear.addEventListener("click", () => {
   resetUploadSessionState();
   renderUploadQueue();
   updateControls();
+});
+
+// === DFU ===
+
+const DFU_STAGES = [
+  "Preparing package",
+  "Rebooting device to DFU mode",
+  "Connecting to bootloader",
+  "Uploading init packet",
+  "Uploading firmware",
+  "Finalizing and rebooting",
+];
+
+const dfuState = {
+  phase: "idle",    // idle | confirming | entering_dfu | waiting | selecting | uploading | success | failed
+  variant: null,    // "LCD" | "OLED" | null (from outer zip filename)
+  zipBlob: null,
+  zipFileName: null,
+};
+
+async function resolveOtaZip(fileBlob, fileName) {
+  const lower = (fileName || "").toLowerCase();
+  const inferredVariant = lower.includes("_lcd") ? "LCD"
+    : lower.includes("_oled") ? "OLED"
+    : null;
+
+  const zip = await window.JSZip.loadAsync(fileBlob);
+  if (zip.file("manifest.json")) {
+    return { otaBlob: fileBlob, variant: inferredVariant };
+  }
+
+  const nested = Object.values(zip.files).find(e => !e.dir && e.name.toLowerCase().endsWith(".zip"));
+  if (!nested) throw new Error("No OTA package found. Select a DFU .zip or a Pixl release .zip.");
+
+  const nestedBlob = await nested.async("blob");
+  return { otaBlob: nestedBlob, variant: inferredVariant };
+}
+
+async function loadDfuImages(zipBlob) {
+  const zip = await window.JSZip.loadAsync(zipBlob);
+  const manifestFile = zip.file("manifest.json");
+  if (!manifestFile) throw new Error("manifest.json not found — invalid DFU package.");
+
+  const manifestRoot = JSON.parse(await manifestFile.async("string"));
+  const manifest = manifestRoot.manifest || {};
+
+  async function getImage(types) {
+    for (const type of types) {
+      const entry = manifest[type];
+      if (!entry) continue;
+      const init = zip.file(entry.dat_file);
+      const image = zip.file(entry.bin_file);
+      if (!init || !image) throw new Error(`Package missing files for ${type}.`);
+      return {
+        type,
+        initData: await init.async("arraybuffer"),
+        imageData: await image.async("arraybuffer"),
+      };
+    }
+    return null;
+  }
+
+  return {
+    baseImage: await getImage(["softdevice", "bootloader", "softdevice_bootloader"]),
+    appImage: await getImage(["application"]),
+  };
+}
+
+let _dfuConfirmResolve = null;
+
+function showDfuConfirmModal(variant) {
+  dfuState.variant = variant;
+  const needsPicker = !variant;
+  el.dfuVariantRow.hidden = needsPicker;
+  el.dfuVariantValue.textContent = variant ?? "—";
+  el.dfuVariantPicker.hidden = !needsPicker;
+  if (needsPicker) {
+    for (const radio of document.querySelectorAll('input[name="dfuVariant"]')) radio.checked = false;
+    el.btnDfuConfirmOk.disabled = true;
+  } else {
+    el.btnDfuConfirmOk.disabled = false;
+  }
+  openModal(el.dfuConfirmModal);
+  return new Promise(resolve => { _dfuConfirmResolve = resolve; });
+}
+
+el.dfuConfirmModal.addEventListener("modal:close", () => {
+  _dfuConfirmResolve?.(false);
+  _dfuConfirmResolve = null;
+});
+
+el.btnDfuConfirmOk.addEventListener("click", () => {
+  if (el.btnDfuConfirmOk.disabled) return;
+  const r = _dfuConfirmResolve;
+  _dfuConfirmResolve = null;
+  closeModal(el.dfuConfirmModal);
+  r?.(true);
+});
+
+// Enable Update button when variant is picked
+el.dfuVariantPicker.addEventListener("change", () => {
+  const selected = document.querySelector('input[name="dfuVariant"]:checked');
+  el.btnDfuConfirmOk.disabled = !selected;
+});
+
+function setDfuPhase(phase, { stage = "", progress = null, error = null } = {}) {
+  dfuState.phase = phase;
+  el.dfuStage.textContent = stage;
+
+  if (progress !== null) {
+    el.dfuProgressWrap.hidden = false;
+    const pct = Math.min(100, Math.max(0, progress));
+    el.dfuProgressFill.style.width = `${pct}%`;
+    el.dfuProgressPct.textContent = `${pct}%`;
+  } else {
+    el.dfuProgressWrap.hidden = true;
+  }
+
+  if (phase === "success") {
+    el.dfuOverlayIcon.className = "dfu-overlay-icon success";
+    el.dfuOverlayTitle.textContent = "Update complete";
+    el.dfuOverlayActions.hidden = false;
+    el.btnDfuCancel.textContent = "Done";
+    el.btnDfuRetry.hidden = true;
+    el.dfuErrorDetail.hidden = true;
+  } else if (phase === "failed") {
+    el.dfuOverlayIcon.className = "dfu-overlay-icon error";
+    el.dfuOverlayTitle.textContent = "Update failed";
+    el.dfuOverlayActions.hidden = false;
+    el.btnDfuCancel.textContent = "Cancel";
+    el.btnDfuRetry.hidden = false;
+    el.dfuErrorDetail.hidden = !error;
+    el.dfuErrorDetail.textContent = error || "";
+  } else {
+    el.dfuOverlayIcon.className = "dfu-overlay-icon";
+    el.dfuOverlayTitle.textContent = "Updating firmware…";
+    el.dfuOverlayActions.hidden = true;
+    el.dfuErrorDetail.hidden = true;
+  }
+}
+
+function resetDfuUi() {
+  dfuState.phase = "idle";
+  dfuState.zipBlob = null;
+  dfuState.zipFileName = null;
+  dfuState.variant = null;
+  el.dfuOverlay.hidden = true;
+  updateControls();
+}
+
+async function runDfuTransfer() {
+  el.dfuOverlay.hidden = false;
+  setDfuPhase("preparing", { stage: DFU_STAGES[0] });
+  updateControls();
+
+  try {
+    const images = await loadDfuImages(dfuState.zipBlob);
+    if (!images.baseImage && !images.appImage) throw new Error("Package has no transferable images.");
+
+    setDfuPhase("entering_dfu", { stage: DFU_STAGES[1] });
+    const enterRes = await state.client.enterDfu();
+    if (!enterRes.ok) throw new Error(`Couldn't enter DFU mode: ${enterRes.error}`);
+
+    // Brief wait for device to reboot into bootloader
+    setDfuPhase("waiting", { stage: DFU_STAGES[1] });
+    await new Promise(r => setTimeout(r, 700));
+
+    setDfuPhase("selecting", { stage: DFU_STAGES[2] });
+    const dfu = new window.SecureDfu(window.CRC32.buf);
+
+    dfu.addEventListener(window.SecureDfu.EVENT_PROGRESS, (e) => {
+      const { object, currentBytes, totalBytes } = e;
+      const stageLabel = object === "init" ? DFU_STAGES[3] : DFU_STAGES[4];
+      const pct = totalBytes > 0 ? Math.round((currentBytes / totalBytes) * 100) : 0;
+      setDfuPhase("uploading", { stage: stageLabel, progress: pct });
+    });
+
+    const device = await dfu.requestDevice(false, [
+      { services: [window.SecureDfu.SERVICE_UUID], name: "pixl dfu" },
+    ]);
+
+    setDfuPhase("uploading", { stage: DFU_STAGES[3], progress: 0 });
+
+    if (images.baseImage) {
+      await dfu.update(device, images.baseImage.initData, images.baseImage.imageData);
+    }
+    if (images.appImage) {
+      await dfu.update(device, images.appImage.initData, images.appImage.imageData);
+    }
+
+    setDfuPhase("success", { stage: DFU_STAGES[5] });
+    showSuccessToast("Firmware updated", "Reconnect to browse files.");
+
+  } catch (err) {
+    const cancelled = err.name === "NotFoundError" || err.message?.toLowerCase().includes("cancel");
+    if (cancelled) {
+      resetDfuUi();
+    } else {
+      setDfuPhase("failed", { error: err.message });
+    }
+  }
+}
+
+el.btnUpdateFirmware.addEventListener("click", () => {
+  el.dfuFileInput.value = "";
+  el.dfuFileInput.click();
+});
+
+el.dfuFileInput.addEventListener("change", async () => {
+  const file = el.dfuFileInput.files[0];
+  if (!file) return;
+
+  if (!window.JSZip || !window.CRC32 || !window.SecureDfu) {
+    showErrorToast("DFU libraries unavailable", "Check your internet connection and try again.");
+    return;
+  }
+
+  try {
+    const { otaBlob, variant } = await resolveOtaZip(file, file.name);
+    dfuState.zipBlob = otaBlob;
+    dfuState.zipFileName = file.name;
+
+    const confirmed = await showDfuConfirmModal(variant);
+    if (!confirmed) return;
+
+    await runDfuTransfer();
+  } catch (err) {
+    showErrorToast("Package error", err.message);
+  }
+});
+
+el.btnDfuCancel.addEventListener("click", resetDfuUi);
+
+el.btnDfuRetry.addEventListener("click", async () => {
+  if (!dfuState.zipBlob) { resetDfuUi(); return; }
+  await runDfuTransfer();
 });
 
 // === Initial state ===

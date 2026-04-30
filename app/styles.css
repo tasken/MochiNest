@@ -2394,3 +2394,136 @@ button.dev:hover:not(:disabled) { background: #fde68a; }
   font-size: 14px;
 }
 .toast-close:hover { background: #27272a; color: #f4f4f5; }
+
+/* === DFU === */
+
+.dfu-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 150;
+  background: rgba(0,0,0,0.55);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 24px;
+}
+
+.dfu-overlay-card {
+  background: var(--card);
+  border-radius: var(--radius);
+  box-shadow: var(--shadow-xl);
+  width: 100%;
+  max-width: 400px;
+  padding: 32px 28px 24px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 12px;
+  text-align: center;
+}
+
+.dfu-overlay-icon {
+  width: 52px;
+  height: 52px;
+  border-radius: 50%;
+  background: #ede9fe;
+  color: #7c3aed;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 26px;
+  flex-shrink: 0;
+}
+
+.dfu-overlay-icon.success { background: #d1fae5; color: #059669; }
+.dfu-overlay-icon.error   { background: #fee2e2; color: #dc2626; }
+
+.dfu-overlay-title {
+  font-weight: 700;
+  font-size: var(--fs-lg);
+  color: var(--foreground);
+}
+
+.dfu-stage {
+  font-size: var(--fs-s);
+  color: var(--muted-foreground);
+  min-height: 18px;
+}
+
+.dfu-progress-wrap {
+  width: 100%;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 6px;
+}
+
+.dfu-progress-bar {
+  width: 100%;
+  height: 6px;
+  border-radius: 999px;
+  background: var(--secondary);
+  overflow: hidden;
+}
+
+.dfu-progress-fill {
+  height: 100%;
+  border-radius: 999px;
+  background: #7c3aed;
+  transition: width 0.2s;
+}
+
+.dfu-progress-pct {
+  font-size: var(--fs-s);
+  color: var(--muted-foreground);
+  font-variant-numeric: tabular-nums;
+}
+
+.dfu-overlay-actions {
+  display: flex;
+  gap: 8px;
+  margin-top: 4px;
+}
+
+.dfu-error-detail {
+  font-size: var(--fs-xs);
+  color: var(--muted-foreground);
+  background: var(--secondary);
+  border-radius: 6px;
+  padding: 8px 12px;
+  text-align: left;
+  width: 100%;
+  word-break: break-word;
+}
+
+/* DFU confirm modal extras */
+.dfu-variant-row {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+  font-size: var(--fs-s);
+  margin: 4px 0 2px;
+}
+
+.dfu-variant-label {
+  color: var(--muted-foreground);
+  font-weight: 600;
+}
+
+.dfu-variant-value {
+  color: var(--foreground);
+  font-weight: 700;
+}
+
+.dfu-variant-picker {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  margin: 4px 0;
+}
+
+.dfu-variant-picker-label {
+  font-size: var(--fs-s);
+  color: var(--muted-foreground);
+  margin-bottom: 2px;
+}
