@@ -1,0 +1,3 @@
+[build]
+  publish = "app"
+  command = "git rev-parse --short HEAD | xargs -I@ sed -i 's|content=\"dev\"|content=\"@\"|' app/index.html"
