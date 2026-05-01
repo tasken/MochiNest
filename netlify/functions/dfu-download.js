@@ -1,5 +1,6 @@
 export async function handler(event) {
-  const path = (event.queryStringParameters || {}).path || "";
+  const url = new URL(event.rawUrl);
+  const path = url.pathname.replace(/^\/dfu-proxy\//, "");
 
   if (!path || !/^[\w.\-]+\/[\w.\-]+\.zip$/.test(path)) {
     return { statusCode: 400, body: "Invalid path" };

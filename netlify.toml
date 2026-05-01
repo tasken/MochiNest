@@ -4,6 +4,6 @@
 
 [[redirects]]
   from = "/dfu-proxy/*"
-  to = "/.netlify/functions/dfu-download?path=:splat"
+  to = "/.netlify/functions/dfu-download"
   status = 200
   force = true
