@@ -4,6 +4,6 @@
 
 [[redirects]]
   from = "/dfu-proxy/*"
-  to = "https://github.com/solosky/pixl.js/releases/download/:splat"
+  to = "/.netlify/functions/dfu-download?path=:splat"
   status = 200
   force = true
