@@ -15,6 +15,7 @@ const FAVICON_COLORS = {
   connected:    "#10b981",
   reconnecting: "#fb923c",
   mock:         "#7878cc",
+  dfu:          "#f97316",
 };
 
 const BRAND_GRADIENTS = {
@@ -23,6 +24,7 @@ const BRAND_GRADIENTS = {
   connected:    ["#059669", "#34d399"],
   reconnecting: ["#f97316", "#fbbf24"],
   mock:         ["#7c3aed", "#d946ef"],
+  dfu:          ["#ea580c", "#fb923c"],
 };
 
 function setStateColors(connState, isMock) {
@@ -3180,6 +3182,7 @@ function dfuInProgress() {
 function closeDfuModal() {
   closeModal(el.dfuModal);
   resetDfuUi();
+  setStateColors(state.connState, state.client instanceof DevMockClient);
 }
 
 function dfuShowConfirmView() {
@@ -3637,6 +3640,7 @@ el.btnUpdateFirmware.addEventListener("click", () => {
   dfuState.phase = "confirming";
   dfuShowConfirmView();
   openModal(el.dfuModal);
+  setStateColors("dfu", false);
   updateControls();
   if (!dfuState.release && !dfuState.releaseLoading) fetchDfuRelease();
 });
@@ -3651,6 +3655,7 @@ el.btnDfuFromDfu.addEventListener("click", () => {
   dfuState.enterDfuDone = true;
   dfuShowConfirmView();
   openModal(el.dfuModal);
+  setStateColors("dfu", false);
   updateControls();
   if (!dfuState.release && !dfuState.releaseLoading) fetchDfuRelease();
 });
