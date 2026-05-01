@@ -3388,9 +3388,9 @@ function renderDfuReleaseList() {
        </div>`
     : "";
   const buttonsHtml = assets.map(a => {
-    const selected = dfuState.source?.url === a.browser_download_url ? " selected" : "";
+    const selected = dfuState.source?.url === a.url ? " selected" : "";
     const sizeStr = a.size ? formatBytes(a.size) : "";
-    return `<button class="dfu-asset-btn${selected}" data-url="${escapeHtml(a.browser_download_url)}" data-name="${escapeHtml(a.name)}">
+    return `<button class="dfu-asset-btn${selected}" data-url="${escapeHtml(a.url)}" data-name="${escapeHtml(a.name)}">
       <span class="ms-sm dfu-asset-icon">folder_zip</span>
       <span class="dfu-asset-name">${escapeHtml(a.name)}</span>
       ${sizeStr ? `<span class="dfu-asset-size">${sizeStr}</span>` : ""}
@@ -3526,7 +3526,7 @@ async function runDfuTransfer() {
       let rawBlob;
       if (src.type === "url") {
         log(`[DFU] Downloading: ${src.name}`, "cmd");
-        const resp = await fetch(src.url);
+        const resp = await fetch(src.url, { headers: { Accept: "application/octet-stream" } });
         if (!resp.ok) throw new Error(`Download failed (${resp.status}). Check your connection and try again.`);
         rawBlob = await resp.blob();
         log(`[DFU] Download complete.`, "ok");
