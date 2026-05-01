@@ -3068,6 +3068,7 @@ const dfuState = {
   variant: null,       // "LCD" | "OLED" | null (detected from filename)
   chosenVariant: null, // explicit user pick when variant is null
   cancelFlag: false,
+  enterDfuDone: false, // true once the device has been rebooted into DFU mode; retry skips enterDfu()
   release: null,
   releaseLoading: false,
 };
@@ -3441,6 +3442,7 @@ function resetDfuUi() {
   dfuState.variant = null;
   dfuState.chosenVariant = null;
   dfuState.cancelFlag = false;
+  dfuState.enterDfuDone = false;
 
   el.dfuWarnSection.hidden = true;
   el.dfuFooterWarn.hidden = true;
@@ -3502,17 +3504,20 @@ async function runDfuTransfer() {
       const images = await loadDfuImages(otaBlob);
       if (!images.baseImage && !images.appImage) throw new Error("Nothing to install. The package has no firmware images.");
 
-      dfuSetStage("entering_dfu");
-      log("[DFU] Rebooting device into update mode...", "cmd");
-      const enterRes = await state.client.enterDfu();
-      if (!enterRes.ok) throw new Error(`Couldn't switch to update mode: ${enterRes.error}`);
+      if (!dfuState.enterDfuDone) {
+        dfuSetStage("entering_dfu");
+        log("[DFU] Rebooting device into update mode...", "cmd");
+        const enterRes = await state.client.enterDfu();
+        if (!enterRes.ok) throw new Error(`Couldn't switch to update mode: ${enterRes.error}`);
+        dfuState.enterDfuDone = true;
+      }
 
       dfuSetStage("waiting");
-      await new Promise(r => setTimeout(r, 700));
+      await new Promise(r => setTimeout(r, 3000));
       if (dfuState.cancelFlag) throw new Error("Cancelled");
 
       dfuSetStage("selecting");
-      log("[DFU] Connecting to DfuTarg...", "cmd");
+      log("[DFU] Waiting for device in update mode...", "cmd");
       const dfu = new window.SecureDfu(window.CRC32.buf);
 
       let _dfuLastStage = null;
@@ -3528,9 +3533,10 @@ async function runDfuTransfer() {
       });
 
       const device = await dfu.requestDevice(false, [
-        { services: [window.SecureDfu.SERVICE_UUID], name: "DfuTarg" },
+        { services: [window.SecureDfu.SERVICE_UUID] },
       ]);
-      log("[DFU] Connected to DfuTarg.", "ok");
+      const deviceName = device.name || "DFU device";
+      log(`[DFU] Connected to "${deviceName}".`, "ok");
       if (dfuState.cancelFlag) throw new Error("Cancelled");
 
       dfuSetStage("uploading_init", { progress: 0, progressFile: "Init packet" });
@@ -3555,11 +3561,15 @@ async function runDfuTransfer() {
 
   } catch (err) {
     const cancelled = dfuState.cancelFlag
-      || err.name === "NotFoundError"
       || err.message?.toLowerCase().includes("cancel");
     if (cancelled) {
       log("[DFU] Update cancelled.", "err");
       closeDfuModal();
+    } else if (err.name === "NotFoundError") {
+      log("[DFU] DfuTarg not found in picker.", "err");
+      dfuState.phase = "failed";
+      dfuShowFailedView("DfuTarg not found. The device may still be booting — wait a few seconds, then tap Retry.");
+      updateControls();
     } else {
       log(`[DFU] Update failed: ${err.message}`, "err");
       dfuState.phase = "failed";
