@@ -1,3 +1,9 @@
 [build]
   publish = "app"
   command = "git rev-parse --short HEAD | xargs -I@ sed -i 's|content=\"dev\"|content=\"@\"|' app/index.html"
+
+[[redirects]]
+  from = "/dfu-proxy/*"
+  to = "https://github.com/solosky/pixl.js/releases/download/:splat"
+  status = 200
+  force = true
