@@ -269,7 +269,7 @@ var SecureDfu = /** @class */ (function (_super) {
             });
             if (!_this.packetChar)
                 throw new Error("Unable to find packet characteristic");
-            _this.log("found packet characteristic");
+            _this.log("found packet characteristic (writeWithoutResponse=" + !!_this.packetChar.properties.writeWithoutResponse + ")");
             _this.controlChar = characteristics.find(function (characteristic) {
                 return (characteristic.uuid === CONTROL_UUID);
             });
@@ -351,13 +351,13 @@ var SecureDfu = /** @class */ (function (_super) {
                 resolve: resolve,
                 reject: reject
             };
-            characteristic.writeValue(value)
+            characteristic.writeValueWithResponse(value)
                 .catch(function (e) {
                 _this.log(e);
                 return Promise.resolve()
                     .then(function () { return _this.delayPromise(500); })
                     // Retry once
-                    .then(function () { return characteristic.writeValue(value); });
+                    .then(function () { return characteristic.writeValueWithResponse(value); });
             });
         });
     };
@@ -439,9 +439,11 @@ var SecureDfu = /** @class */ (function (_super) {
     SecureDfu.prototype.transferData = function (data, offset, start) {
         var _this = this;
         start = start || 0;
+        if (!this.packetChar) return Promise.reject(new Error("Device disconnected during transfer."));
         var end = Math.min(start + PACKET_SIZE, data.byteLength);
         var packet = data.slice(start, end);
-        return this.packetChar.writeValue(packet)
+        var writeMethod = this.packetChar.properties.writeWithoutResponse ? "writeValueWithoutResponse" : "writeValueWithResponse";
+        return this.packetChar[writeMethod](packet)
             .then(function () { return _this.delayPromise(_this.delay); })
             .then(function () {
             _this.progress(offset + end);

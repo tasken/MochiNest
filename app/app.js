@@ -124,6 +124,7 @@ const el = {
   mainOverlayTitle: document.getElementById("mainOverlayTitle"),
   mainOverlaySub: document.getElementById("mainOverlaySub"),
   btnConnectCta: document.getElementById("btnConnectCta"),
+  btnDfuFromDfu: document.getElementById("btnDfuFromDfu"),
 
   // Context panel — folder state
   panelFolder: document.getElementById("panelFolder"),
@@ -284,6 +285,7 @@ const el = {
   btnDfuCancelTransfer: document.getElementById("btnDfuCancelTransfer"),
   dfuFooterFailed: document.getElementById("dfuFooterFailed"),
   btnDfuReconnect: document.getElementById("btnDfuReconnect"),
+  btnDfuReboot: document.getElementById("btnDfuReboot"),
   btnDfuRetry: document.getElementById("btnDfuRetry"),
   dfuFooterSuccess: document.getElementById("dfuFooterSuccess"),
   btnDfuReconnectSuccess: document.getElementById("btnDfuReconnectSuccess"),
@@ -486,6 +488,7 @@ function setConnState(newState) {
   el.mainOverlaySub.textContent = (connecting || reconnecting) ? "" : "Connect your Pixl.js to browse and manage files.";
   el.btnConnectCta.hidden = connecting || reconnecting;
   el.btnConnectCta.disabled = connecting || reconnecting;
+  el.btnDfuFromDfu.hidden = !disconnected;
 
   // Disconnect button — visible when connected or reconnecting
   el.btnConnect.hidden = !(connected || reconnecting);
@@ -3074,6 +3077,7 @@ const dfuState = {
   chosenVariant: null, // explicit user pick when variant is null
   cancelFlag: false,
   enterDfuDone: false, // true once the device has been rebooted into DFU mode; retry skips enterDfu()
+  dfuDevice: null,     // BluetoothDevice once connected to the DFU bootloader; used for forced reboot
   release: null,
   releaseLoading: false,
 };
@@ -3254,6 +3258,7 @@ function dfuShowFailedView(errorText) {
   el.dfuErrorBox.hidden = false;
   el.dfuErrorBox.textContent = errorText;
   el.dfuSuccessBox.hidden = true;
+  el.btnDfuReboot.hidden = !dfuState.enterDfuDone;
 }
 
 function dfuShowSuccessView() {
@@ -3480,6 +3485,7 @@ function resetDfuUi() {
   dfuState.chosenVariant = null;
   dfuState.cancelFlag = false;
   dfuState.enterDfuDone = false;
+  dfuState.dfuDevice = null;
 
   setDfuFirmwareType("native");
 
@@ -3557,7 +3563,7 @@ async function runDfuTransfer() {
 
       dfuSetStage("selecting");
       log("[DFU] Waiting for device in update mode...", "cmd");
-      const dfu = new window.SecureDfu(window.CRC32.buf);
+      const dfu = new window.SecureDfu(window.CRC32.buf, undefined, 10);
 
       let _dfuLastStage = null;
       dfu.addEventListener(window.SecureDfu.EVENT_PROGRESS, ({ object, currentBytes, totalBytes }) => {
@@ -3574,6 +3580,7 @@ async function runDfuTransfer() {
       const device = await dfu.requestDevice(false, [
         { services: [window.SecureDfu.SERVICE_UUID] },
       ]);
+      dfuState.dfuDevice = device;
       const deviceName = device.name || "DFU device";
       log(`[DFU] Connected to "${deviceName}".`, "ok");
       if (dfuState.cancelFlag) throw new Error("Cancelled");
@@ -3628,6 +3635,20 @@ el.btnUpdateFirmware.addEventListener("click", () => {
   el.dfuUpdateDot.hidden = true;
   resetDfuUi();
   dfuState.phase = "confirming";
+  dfuShowConfirmView();
+  openModal(el.dfuModal);
+  updateControls();
+  if (!dfuState.release && !dfuState.releaseLoading) fetchDfuRelease();
+});
+
+el.btnDfuFromDfu.addEventListener("click", () => {
+  if (!dfuIsDev() && (!window.JSZip || !window.CRC32 || !window.SecureDfu)) {
+    showErrorToast("Update tools not loaded", "Refresh the page and try again.");
+    return;
+  }
+  resetDfuUi();
+  dfuState.phase = "confirming";
+  dfuState.enterDfuDone = true;
   dfuShowConfirmView();
   openModal(el.dfuModal);
   updateControls();
@@ -3726,6 +3747,15 @@ function dfuReconnect() {
 }
 
 el.btnDfuReconnect.addEventListener("click", dfuReconnect);
+
+el.btnDfuReboot.addEventListener("click", () => {
+  const device = dfuState.dfuDevice;
+  if (device?.gatt?.connected) {
+    device.gatt.disconnect();
+  }
+  closeDfuModal();
+  showSuccessToast("Exiting DFU mode", "Power cycle the device to return to normal mode.");
+});
 
 el.btnDfuRetry.addEventListener("click", async () => {
   if (!dfuState.source) { closeDfuModal(); return; }

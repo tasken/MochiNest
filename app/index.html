@@ -80,6 +80,7 @@
         <span class="title" id="mainOverlayTitle">No device connected</span>
         <span class="sub" id="mainOverlaySub"></span>
         <button class="btn-labeled primary" id="btnConnectCta"><span class="ms">bluetooth</span> Connect to Pixl.js</button>
+        <button class="btn-labeled ghost overlay-dfu-hint" id="btnDfuFromDfu" hidden><span class="ms-sm">memory</span> Device in update mode?</button>
       </div>
       <div class="main-overlay-footer panel-footer">
         <span id="navCommitOverlay"></span>
@@ -534,6 +535,7 @@
     </div>
     <div class="dfu-modal-footer" id="dfuFooterFailed" hidden>
       <button class="btn-labeled ghost" id="btnDfuReconnect">Skip and reconnect</button>
+      <button class="btn-labeled ghost" id="btnDfuReboot" hidden><span class="ms-sm">restart_alt</span> Exit DFU mode</button>
       <button class="btn-labeled primary" id="btnDfuRetry"><span class="ms-sm">replay</span> Retry</button>
     </div>
     <div class="dfu-modal-footer" id="dfuFooterSuccess" hidden>

@@ -1606,6 +1606,7 @@ button.dev:hover:not(:disabled) { background: #fde68a; }
   .main-overlay-icon-wrap .ms { font-size: 2rem; color: #fff; }
 
   #btnConnectCta { align-self: center; margin-top: 8px; height: 44px; padding: 0 24px; font-size: var(--fs-md); border-radius: var(--radius); }
+  .overlay-dfu-hint { align-self: center; margin-top: 4px; font-size: var(--fs-s); opacity: 0.6; }
   #mainOverlaySpinner md-circular-progress {
     --md-circular-progress-size: 40px;
     --md-circular-progress-active-indicator-color: #8b5cf6;
