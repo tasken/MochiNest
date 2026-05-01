@@ -488,6 +488,9 @@
           </div>
         </div>
       </div>
+      <label class="dfu-dev-fail" id="dfuDevFailLabel" hidden>
+        <input type="checkbox" id="dfuDevFailToggle"> Simulate failure
+      </label>
     </div>
 
     <!-- Progress section -->
@@ -509,6 +512,9 @@
       </div>
       <ol class="dfu-stage-list" id="dfuStageList"></ol>
       <div class="dfu-result-box dfu-result-error" id="dfuErrorBox" hidden></div>
+      <div class="dfu-troubleshoot" id="dfuTroubleshootLinks" hidden>
+        Need help? See the <a href="https://github.com/solosky/pixl.js/blob/main/docs/en/02-Flash-Firmware.md" target="_blank" rel="noopener">firmware recovery guide</a> or <a href="https://www.reddit.com/r/Amiibomb/comments/1attsxx/how_to_reset_frozen_allmiibo/" target="_blank" rel="noopener">how to reset a frozen device</a>.
+      </div>
       <div class="dfu-result-box dfu-result-success" id="dfuSuccessBox" hidden>
         <div class="dfu-result-title">All done!</div>
         <p>Your Pixl.js is back up. Reconnect to pick up where you left off.</p>
@@ -519,7 +525,8 @@
     <div class="dfu-modal-body" id="dfuWarnSection" hidden>
       <div class="modal-icon-badge danger"><span class="ms">warning</span></div>
       <div class="modal-body-title">Proceed at your own risk</div>
-      <p class="dfu-intro">Flashing firmware carries a small risk. If something goes wrong mid-transfer, your device may be left in an unrecoverable state. There is no guarantee or warranty. Only proceed if you're comfortable with this.</p>
+      <p class="dfu-intro">Make sure the screen type you selected matches your device. Flashing the wrong screen type will leave the screen blank. It is not a brick, but you will need to flash the correct version to fix it.</p>
+      <p class="dfu-intro">If a transfer is interrupted, your device may get stuck in update mode. This is usually recoverable by retrying the update. There is no guarantee or warranty.</p>
     </div>
 
     <!-- Footers (one visible at a time) -->

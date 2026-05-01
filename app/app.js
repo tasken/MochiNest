@@ -265,6 +265,8 @@ const el = {
   dfuVariantUnknown: document.getElementById("dfuVariantUnknown"),
   btnDfuVariantLCD: document.getElementById("btnDfuVariantLCD"),
   btnDfuVariantOLED: document.getElementById("btnDfuVariantOLED"),
+  dfuDevFailLabel: document.getElementById("dfuDevFailLabel"),
+  dfuDevFailToggle: document.getElementById("dfuDevFailToggle"),
   dfuProgressSection: document.getElementById("dfuProgressSection"),
   dfuStatusSubhead: document.getElementById("dfuStatusSubhead"),
   dfuActiveIcon: document.getElementById("dfuActiveIcon"),
@@ -276,6 +278,7 @@ const el = {
   dfuSelectingHint: document.getElementById("dfuSelectingHint"),
   dfuStageList: document.getElementById("dfuStageList"),
   dfuErrorBox: document.getElementById("dfuErrorBox"),
+  dfuTroubleshootLinks: document.getElementById("dfuTroubleshootLinks"),
   dfuSuccessBox: document.getElementById("dfuSuccessBox"),
   dfuWarnSection: document.getElementById("dfuWarnSection"),
   dfuFooterConfirm: document.getElementById("dfuFooterConfirm"),
@@ -3193,17 +3196,21 @@ const MOCK_RELEASE = {
   ],
 };
 
-async function mockDfuTransfer(onProgress) {
+async function mockDfuTransfer(onProgress, fail = false) {
   const delay = ms => new Promise(r => setTimeout(r, ms));
-  async function sweep(stageId, label, steps, stepMs) {
+  async function sweep(stageId, label, steps, stepMs, cap = 100) {
     for (let i = 0; i <= steps; i++) {
       if (dfuState.cancelFlag) throw new Error("Cancelled");
-      onProgress(stageId, { progress: (i / steps) * 100, progressFile: label });
+      onProgress(stageId, { progress: Math.min((i / steps) * 100, cap), progressFile: label });
       await delay(stepMs);
     }
   }
   await delay(300);
   await sweep("uploading_init", "Init packet", 10, 80);
+  if (fail) {
+    await sweep("uploading_firmware", "Firmware", 8, 100, 40);
+    throw new Error("Transfer interrupted: device disconnected mid-transfer.");
+  }
   await sweep("uploading_firmware", "Firmware", 20, 100);
 }
 
@@ -3277,6 +3284,7 @@ function dfuShowProgressView() {
   el.dfuFooterSuccess.hidden = true;
   el.dfuStatusSubhead.textContent = "UPDATING";
   el.dfuErrorBox.hidden = true;
+  el.dfuTroubleshootLinks.hidden = true;
   el.dfuSuccessBox.hidden = true;
 }
 
@@ -3295,6 +3303,7 @@ function dfuShowFailedView(errorText, { title = "Update failed", subhead = "UPDA
   el.dfuActiveLabel.textContent = title;
   el.dfuErrorBox.hidden = false;
   el.dfuErrorBox.textContent = errorText;
+  el.dfuTroubleshootLinks.hidden = false;
   el.dfuSuccessBox.hidden = true;
   el.btnDfuReboot.hidden = !dfuState.dfuDevice;
   el.btnDfuRetryConnect.hidden = !dfuState.pickerDismissed;
@@ -3317,6 +3326,7 @@ function dfuShowSuccessView() {
   el.dfuActiveIcon.querySelector(".ms").textContent = "check";
   el.dfuActiveLabel.textContent = "Firmware updated successfully";
   el.dfuErrorBox.hidden = true;
+  el.dfuTroubleshootLinks.hidden = true;
   el.dfuSuccessBox.hidden = false;
   renderDfuStageList("__done__");
 }
@@ -3553,6 +3563,7 @@ function resetDfuUi() {
   el.dfuVariantSection.hidden = true;
   el.dfuProgressBarWrap.hidden = true;
   el.dfuErrorBox.hidden = true;
+  el.dfuTroubleshootLinks.hidden = true;
   el.dfuSuccessBox.hidden = true;
   el.dfuStatusSubhead.textContent = "UPDATING";
   el.dfuActiveLabel.textContent = "";
@@ -3560,6 +3571,8 @@ function resetDfuUi() {
   el.dfuActiveIcon.querySelector(".ms").textContent = "sync";
   el.dfuStageList.innerHTML = "";
   el.dfuReleaseContainer.querySelectorAll(".dfu-asset-btn.selected").forEach(b => b.classList.remove("selected"));
+  el.dfuDevFailLabel.hidden = !dfuIsDev();
+  el.dfuDevFailToggle.checked = false;
   el.btnDfuStart.disabled = true;
   updateControls();
 }
@@ -3578,6 +3591,8 @@ async function runDfuTransfer() {
 
     if (dfuIsDev()) {
       // Simulate the full flow without real BLE or real ZIP
+      const shouldFail = el.dfuDevFailToggle.checked;
+      el.dfuDevFailToggle.checked = false;
       await new Promise(r => setTimeout(r, 300));
       dfuSetStage("entering_dfu");
       await new Promise(r => setTimeout(r, 500));
@@ -3587,7 +3602,7 @@ async function runDfuTransfer() {
       dfuSetStage("selecting");
       await new Promise(r => setTimeout(r, 600));
       if (dfuState.cancelFlag) throw new Error("Cancelled");
-      await mockDfuTransfer((stageId, opts) => dfuSetStage(stageId, opts));
+      await mockDfuTransfer((stageId, opts) => dfuSetStage(stageId, opts), shouldFail);
     } else {
       let images;
       if (dfuState.cachedImages) {

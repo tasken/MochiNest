@@ -2880,3 +2880,21 @@ a.dfu-source-label:hover { color: #7c3aed; text-decoration: underline; }
 .dfu-result-error   { background: #fff1f2; border: 1px solid #fecdd3; color: #9f1239; }
 .dfu-result-success { background: #f0fdf4; border: 1px solid #bbf7d0; color: #14532d; }
 .dfu-result-box p   { margin: 4px 0 0; line-height: 1.45; }
+
+.dfu-troubleshoot:not([hidden]) {
+  display: block;
+  font-size: var(--fs-s);
+  color: var(--muted-foreground);
+  line-height: 1.5;
+}
+.dfu-troubleshoot a { color: inherit; text-decoration: underline; }
+
+.dfu-dev-fail:not([hidden]) {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin-top: 12px;
+  font-size: var(--fs-s);
+  color: #f59e0b;
+  cursor: pointer;
+}
