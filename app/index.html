@@ -20,7 +20,7 @@
 <link rel="icon" type="image/svg+xml" href="./favicon.svg">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:ital,wght@0,100;0,200;0,300;0,400;0,500;0,600;0,700;1,100;1,200;1,300;1,400;1,500;1,600;1,700&family=IBM+Plex+Sans:ital,wght@0,100..700;1,100..700&display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400&family=IBM+Plex+Sans:wght@400;700&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Material+Symbols+Rounded:opsz,wght,FILL,GRAD@20,400,1,0">
 <link rel="stylesheet" href="./styles.css">
 <script type="module">import 'https://esm.sh/@material/web/progress/circular-progress.js';</script>
@@ -80,7 +80,7 @@
         <span class="title" id="mainOverlayTitle">No device connected</span>
         <span class="sub" id="mainOverlaySub"></span>
         <button class="btn-labeled primary" id="btnConnectCta"><span class="ms">bluetooth</span> Connect to Pixl.js</button>
-        <button class="btn-labeled ghost overlay-dfu-hint" id="btnDfuFromDfu" hidden><span class="ms-sm">memory</span> Device in update mode?</button>
+        <button class="btn-labeled ghost overlay-dfu-btn" id="btnDfuFromDfu" hidden><span class="ms-sm">system_update</span> Update firmware</button>
       </div>
       <div class="main-overlay-footer panel-footer">
         <span id="navCommitOverlay"></span>
@@ -445,7 +445,7 @@
 
     <!-- Confirm section -->
     <div class="dfu-modal-body" id="dfuConfirmSection">
-      <p class="dfu-intro">Which app does your device run?</p>
+      <p class="dfu-intro">What's installed on your device?</p>
 
       <div class="dfu-type-tabs">
         <button class="dfu-tab-btn active" id="dfuTabNative">Vanilla</button>
@@ -471,15 +471,16 @@
       </div>
 
       <div id="dfuVariantSection" hidden>
-        <div class="dfu-section-label">DISPLAY TYPE</div>
+        <div class="dfu-section-label">SCREEN TYPE</div>
         <div class="dfu-variant-detected" id="dfuVariantDetected" hidden>
           <span class="ms-sm">check_circle</span>
           <span>Detected: <strong id="dfuVariantDetectedName"></strong></span>
+          <span class="dfu-variant-verify" id="dfuVariantVerifyNote">Double-check this matches your screen.</span>
         </div>
         <div id="dfuVariantUnknown" hidden>
           <div class="dfu-variant-warn">
             <span class="ms-sm">warning</span>
-            <span>Couldn't detect the display type from this filename. Which screen does your Pixl have?</span>
+            <span>We couldn't detect the screen type from this file. Which display does your Pixl have?</span>
           </div>
           <div class="dfu-variant-grid">
             <button class="dfu-variant-btn" id="btnDfuVariantLCD" data-variant="LCD">LCD</button>
@@ -491,13 +492,13 @@
 
     <!-- Progress section -->
     <div class="dfu-modal-body" id="dfuProgressSection" hidden>
-      <div class="dfu-status-subhead" id="dfuStatusSubhead">IN PROGRESS</div>
+      <div class="dfu-status-subhead" id="dfuStatusSubhead">UPDATING</div>
       <div class="dfu-active-stage">
         <span class="modal-icon-badge primary" id="dfuActiveIcon"><span class="ms">sync</span></span>
         <span class="dfu-active-label" id="dfuActiveLabel"></span>
       </div>
       <div class="dfu-hint-box" id="dfuSelectingHint" hidden>
-        A browser dialog should appear. Select your Pixl.js from the list — it may show as <code class="dfu-code">DfuTarg</code>, <code class="dfu-code">pixl dfu</code>, or another name depending on your firmware. If you don't see it, wait a moment and try again.
+        A browser dialog should appear. Select your Pixl.js from the list. It may show as <code class="dfu-code">DfuTarg</code>, <code class="dfu-code">pixl dfu</code>, or another name depending on your firmware. If you don't see it, wait a moment and try again.
       </div>
       <div class="dfu-progress-bar-wrap" id="dfuProgressBarWrap" hidden>
         <div class="dfu-progress-bar"><div class="dfu-progress-fill" id="dfuProgressFill"></div></div>
@@ -509,7 +510,7 @@
       <ol class="dfu-stage-list" id="dfuStageList"></ol>
       <div class="dfu-result-box dfu-result-error" id="dfuErrorBox" hidden></div>
       <div class="dfu-result-box dfu-result-success" id="dfuSuccessBox" hidden>
-        <div class="dfu-result-title">All done! ✦</div>
+        <div class="dfu-result-title">All done!</div>
         <p>Your Pixl.js is back up. Reconnect to pick up where you left off.</p>
       </div>
     </div>
@@ -518,7 +519,7 @@
     <div class="dfu-modal-body" id="dfuWarnSection" hidden>
       <div class="modal-icon-badge danger"><span class="ms">warning</span></div>
       <div class="modal-body-title">Proceed at your own risk</div>
-      <p class="dfu-intro">Firmware updates can fail and leave your device unrecoverable. There is no guarantee and no warranty. If the update fails partway through, recovery may not be possible.</p>
+      <p class="dfu-intro">Flashing firmware carries a small risk. If something goes wrong mid-transfer, your device may be left in an unrecoverable state. There is no guarantee or warranty. Only proceed if you're comfortable with this.</p>
     </div>
 
     <!-- Footers (one visible at a time) -->
@@ -534,8 +535,9 @@
       <button class="btn-labeled danger" id="btnDfuCancelTransfer">Cancel</button>
     </div>
     <div class="dfu-modal-footer" id="dfuFooterFailed" hidden>
-      <button class="btn-labeled ghost" id="btnDfuReconnect">Skip and reconnect</button>
+      <button class="btn-labeled ghost" id="btnDfuReconnect">Back to device</button>
       <button class="btn-labeled ghost" id="btnDfuReboot" hidden><span class="ms-sm">restart_alt</span> Exit DFU mode</button>
+      <button class="btn-labeled ghost" id="btnDfuRetryConnect" hidden><span class="ms-sm">bluetooth_searching</span> Retry connection</button>
       <button class="btn-labeled primary" id="btnDfuRetry"><span class="ms-sm">replay</span> Retry</button>
     </div>
     <div class="dfu-modal-footer" id="dfuFooterSuccess" hidden>
