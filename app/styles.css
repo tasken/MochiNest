@@ -2484,6 +2484,66 @@ button.dev:hover:not(:disabled) { background: #fde68a; }
   font-size: 0.9em;
 }
 
+/* Firmware type tabs */
+.dfu-type-tabs {
+  display: flex;
+  gap: 4px;
+  background: var(--secondary);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 4px;
+}
+.dfu-tab-btn {
+  flex: 1;
+  border: none;
+  border-radius: calc(var(--radius) - 3px);
+  background: transparent;
+  color: var(--muted-foreground);
+  padding: 6px 12px;
+  transition: background 0.15s, color 0.15s, box-shadow 0.15s;
+}
+.dfu-tab-btn:hover:not(.active) { color: var(--foreground); }
+.dfu-tab-btn.active {
+  background: var(--background);
+  color: var(--foreground);
+  box-shadow: var(--shadow-sm, 0 1px 3px rgba(0,0,0,.1));
+}
+
+/* Tab description */
+.dfu-type-desc {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  font-size: var(--fs-s);
+  color: var(--muted-foreground);
+  line-height: 1.4;
+}
+.dfu-type-desc-text { display: block; }
+.dfu-device-list {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 5px;
+  align-items: center;
+}
+.dfu-device-list-label {
+  font-size: var(--fs-xs);
+  font-weight: 600;
+  color: var(--muted-foreground);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  margin-right: 2px;
+}
+.dfu-device-chip {
+  background: var(--secondary);
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  padding: 2px 9px;
+  font-size: var(--fs-xs);
+  font-weight: 500;
+  color: var(--foreground);
+  white-space: nowrap;
+}
+
 /* Release source */
 .dfu-source-hdr {
   display: flex;
@@ -2505,36 +2565,29 @@ button.dev:hover:not(:disabled) { background: #fde68a; }
 }
 a.dfu-source-label:hover { color: #7c3aed; text-decoration: underline; }
 
-.dfu-link-btn {
-  background: none;
-  border: none;
-  cursor: pointer;
-  font-size: var(--fs-xs);
-  font-weight: 600;
-  color: #7c3aed;
-  padding: 0;
-  transition: color 0.12s;
-}
-.dfu-link-btn:hover { color: #5b21b6; }
-.dfu-link-btn:disabled { opacity: 0.4; cursor: default; }
-
 /* Release container */
 .dfu-release-container {
   border: 1px solid var(--border);
   border-radius: calc(var(--radius) - 2px);
   overflow: hidden;
   font-size: var(--fs-s);
+  min-height: 100px;
+  display: flex;
+  flex-direction: column;
 }
 
 .dfu-release-placeholder,
 .dfu-release-status {
+  flex: 1;
   display: flex;
   align-items: center;
+  justify-content: center;
   gap: 8px;
   padding: 10px 12px;
   color: var(--muted-foreground);
 }
 .dfu-release-status.error { color: #9f1239; }
+.dfu-release-spinner { animation: dfu-spin 0.8s linear infinite; font-size: 16px; }
 
 .dfu-release-meta {
   display: flex;
@@ -2572,23 +2625,24 @@ a.dfu-source-label:hover { color: #7c3aed; text-decoration: underline; }
 .dfu-release-link:hover { color: var(--foreground); }
 
 .dfu-release-assets {
+  flex: 1;
   max-height: 160px;
   overflow-y: auto;
+  display: flex;
+  flex-direction: column;
 }
 
 .dfu-asset-btn {
   width: 100%;
-  display: flex;
-  align-items: center;
+  flex: 1;
   gap: 8px;
   padding: 7px 12px;
   border: none;
   border-bottom: 1px solid var(--border);
+  border-radius: 0;
   background: transparent;
   text-align: left;
-  cursor: pointer;
   transition: background 0.1s;
-  font-size: var(--fs-s);
 }
 .dfu-asset-btn:last-child { border-bottom: none; }
 .dfu-asset-btn:hover { background: #ede9fe; }
@@ -2635,12 +2689,7 @@ a.dfu-source-label:hover { color: #7c3aed; text-decoration: underline; }
   border-radius: calc(var(--radius) - 2px);
   border: 2px dashed var(--border);
   background: transparent;
-  display: flex;
-  align-items: center;
-  justify-content: center;
   gap: 6px;
-  cursor: pointer;
-  font-size: var(--fs-s);
   color: #4b5563;
   transition: border-color 0.15s, background 0.15s, color 0.15s;
 }
@@ -2705,11 +2754,7 @@ a.dfu-source-label:hover { color: #7c3aed; text-decoration: underline; }
 .dfu-variant-btn {
   height: 40px;
   border-radius: calc(var(--radius) - 2px);
-  border: 1px solid var(--border);
   background: transparent;
-  cursor: pointer;
-  font-weight: 600;
-  font-size: var(--fs-base);
   transition: border-color 0.12s, background 0.12s, color 0.12s;
 }
 .dfu-variant-btn:hover { background: var(--secondary); }

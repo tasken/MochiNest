@@ -444,26 +444,33 @@
 
     <!-- Confirm section -->
     <div class="dfu-modal-body" id="dfuConfirmSection">
-      <p class="dfu-intro">Your Pixl.js will restart into update mode. If the browser asks you to pick a device, select your Pixl from the list.</p>
+      <p class="dfu-intro">Which app does your device run?</p>
 
-      <div class="dfu-source-hdr">
-        <span class="ms-sm">code</span>
-        <a class="dfu-source-label" href="https://github.com/solosky/pixl.js/releases" target="_blank" rel="noopener">solosky/pixl.js releases</a>
-        <button class="dfu-link-btn" id="btnDfuRefreshRelease">Refresh</button>
+      <div class="dfu-type-tabs">
+        <button class="dfu-tab-btn active" id="dfuTabNative">Vanilla</button>
+        <button class="dfu-tab-btn" id="dfuTabCustom">Modified</button>
       </div>
-      <div id="dfuReleaseContainer" class="dfu-release-container"></div>
+      <div class="dfu-type-desc" id="dfuTypeDesc"></div>
 
-      <div class="dfu-divider"><span>OR USE LOCAL FILE</span></div>
+      <div id="dfuNativePanel">
+        <div class="dfu-source-hdr">
+          <span class="ms-sm">code</span>
+          <a class="dfu-source-label" href="https://github.com/solosky/pixl.js/releases" target="_blank" rel="noopener">solosky/pixl.js releases</a>
+          <button class="ghost" id="btnDfuRefreshRelease">Refresh</button>
+        </div>
+        <div id="dfuReleaseContainer" class="dfu-release-container"></div>
+        <div class="dfu-divider"><span>OR USE LOCAL FILE</span></div>
+      </div>
 
       <button class="dfu-pick-btn" id="btnDfuPickFile"><span class="ms-sm">folder_zip</span> Pick a .zip from your computer</button>
       <div class="dfu-picked-file" id="dfuPickedFile" hidden>
         <span class="ms-sm">folder_zip</span>
         <span class="dfu-picked-name" id="dfuPickedName"></span>
-        <button class="dfu-link-btn" id="btnDfuChangeFile">Change</button>
+        <button class="ghost" id="btnDfuChangeFile">Change</button>
       </div>
 
       <div id="dfuVariantSection" hidden>
-        <div class="dfu-section-label">VARIANT</div>
+        <div class="dfu-section-label">DISPLAY TYPE</div>
         <div class="dfu-variant-detected" id="dfuVariantDetected" hidden>
           <span class="ms-sm">check_circle</span>
           <span>Detected: <strong id="dfuVariantDetectedName"></strong></span>
@@ -471,7 +478,7 @@
         <div id="dfuVariantUnknown" hidden>
           <div class="dfu-variant-warn">
             <span class="ms-sm">warning</span>
-            <span>Couldn't detect the display type from the filename. Which screen does your Pixl have?</span>
+            <span>Couldn't detect the display type from this filename. Which screen does your Pixl have?</span>
           </div>
           <div class="dfu-variant-grid">
             <button class="dfu-variant-btn" id="btnDfuVariantLCD" data-variant="LCD">LCD</button>

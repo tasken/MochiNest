@@ -245,6 +245,10 @@ const el = {
   dfuModal: document.getElementById("dfuModal"),
   btnDfuClose: document.getElementById("btnDfuClose"),
   dfuConfirmSection: document.getElementById("dfuConfirmSection"),
+  dfuTabNative: document.getElementById("dfuTabNative"),
+  dfuTabCustom: document.getElementById("dfuTabCustom"),
+  dfuTypeDesc: document.getElementById("dfuTypeDesc"),
+  dfuNativePanel: document.getElementById("dfuNativePanel"),
   dfuReleaseContainer: document.getElementById("dfuReleaseContainer"),
   btnDfuRefreshRelease: document.getElementById("btnDfuRefreshRelease"),
   btnDfuPickFile: document.getElementById("btnDfuPickFile"),
@@ -3065,6 +3069,7 @@ const DFU_STAGES = [
 const dfuState = {
   phase: "idle",       // idle | confirming | preparing | entering_dfu | waiting | selecting | uploading_init | uploading_firmware | rebooting | success | failed
   source: null,        // { type: "url", url, name } | { type: "file", file, name }
+  firmwareType: "native", // "native" | "custom"
   variant: null,       // "LCD" | "OLED" | null (detected from filename)
   chosenVariant: null, // explicit user pick when variant is null
   cancelFlag: false,
@@ -3356,7 +3361,7 @@ async function fetchDfuRelease() {
 function renderDfuReleaseList() {
   const c = el.dfuReleaseContainer;
   if (dfuState.releaseLoading) {
-    c.innerHTML = `<div class="dfu-release-status">Fetching latest release…</div>`;
+    c.innerHTML = `<div class="dfu-release-status"><span class="ms dfu-release-spinner">progress_activity</span> Fetching latest release…</div>`;
     return;
   }
   if (!dfuState.release) {
@@ -3435,6 +3440,34 @@ function updateDfuStartButton() {
   el.btnDfuStart.disabled = !ready;
 }
 
+const DFU_FIRMWARE_TYPES = {
+  native: {
+    devices: ["allmiibo"],
+    desc: "The official solosky/pixl.js firmware. Select a release from the list or install from a local file.",
+  },
+  custom: {
+    devices: ["amiibotool", "NFC emulator", "NFC tool", "Joysfusion", "Wuzplay", "Flashiibo"],
+    desc: "A community or modified build. Use the .zip provided by your firmware\u2019s developer.",
+  },
+};
+
+function setDfuFirmwareType(type) {
+  dfuState.firmwareType = type;
+  const isCustom = type === "custom";
+  el.dfuNativePanel.hidden = isCustom;
+  el.dfuTabNative.classList.toggle("active", !isCustom);
+  el.dfuTabCustom.classList.toggle("active", isCustom);
+  const { desc, devices } = DFU_FIRMWARE_TYPES[type];
+  const chips = devices.map(d => `<span class="dfu-device-chip">${escapeHtml(d)}</span>`).join("");
+  el.dfuTypeDesc.innerHTML = `<span class="dfu-type-desc-text">${escapeHtml(desc)}</span><span class="dfu-device-list"><span class="dfu-device-list-label">Used by:</span>${chips}</span>`;
+  if (isCustom && dfuState.source?.type === "url") {
+    dfuState.source = null;
+    el.dfuReleaseContainer.querySelectorAll(".dfu-asset-btn.selected").forEach(b => b.classList.remove("selected"));
+    updateDfuVariantUI();
+    updateDfuStartButton();
+  }
+}
+
 function resetDfuUi() {
   _clearDfuWarnCountdown();
   dfuState.phase = "idle";
@@ -3443,6 +3476,8 @@ function resetDfuUi() {
   dfuState.chosenVariant = null;
   dfuState.cancelFlag = false;
   dfuState.enterDfuDone = false;
+
+  setDfuFirmwareType("native");
 
   el.dfuWarnSection.hidden = true;
   el.dfuFooterWarn.hidden = true;
@@ -3598,6 +3633,9 @@ el.btnUpdateFirmware.addEventListener("click", () => {
 el.btnDfuClose.addEventListener("click", () => {
   if (!dfuInProgress()) closeDfuModal();
 });
+
+el.dfuTabNative.addEventListener("click", () => setDfuFirmwareType("native"));
+el.dfuTabCustom.addEventListener("click", () => setDfuFirmwareType("custom"));
 
 el.btnDfuRefreshRelease.addEventListener("click", fetchDfuRelease);
 
