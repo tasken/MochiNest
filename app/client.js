@@ -429,7 +429,7 @@ export class PixlToolsClient {
     }
   }
 
-  async uploadFile(remotePath, file, onProgress, abortSignal, chunkSize = 128) {
+  async uploadFile(remotePath, file, onProgress, abortSignal, chunkSize = 216) {
     validateRemotePath(remotePath, "file");
     const openRes = await this.openFile(remotePath, "w");
     if (!openRes.ok) throw new Error(openRes.error);

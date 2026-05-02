@@ -1,0 +1,91 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <title>Mochi benchmark</title>
+  <style>
+    :root {
+      color-scheme: light dark;
+      font-family: ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial, sans-serif;
+    }
+    body { margin: 24px auto; max-width: 900px; padding: 0 16px; line-height: 1.45; }
+    h1, h2 { margin: 0 0 12px; }
+    .card { border: 1px solid #8884; border-radius: 12px; padding: 14px; margin: 14px 0; }
+    .row { display: flex; gap: 10px; flex-wrap: wrap; align-items: center; margin: 8px 0; }
+    label { display: inline-flex; gap: 8px; align-items: center; }
+    input[type="text"], input[type="number"] { min-width: 220px; }
+    button { padding: 7px 12px; border-radius: 8px; border: 1px solid #8886; cursor: pointer; }
+    button:disabled { opacity: 0.6; cursor: not-allowed; }
+    table { width: 100%; border-collapse: collapse; margin-top: 10px; }
+    th, td { border-bottom: 1px solid #8883; text-align: left; padding: 6px; font-size: 0.95rem; }
+    .mono { font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; }
+    .ok { color: #1d7f2e; }
+    .err { color: #a32323; }
+    #log { white-space: pre-wrap; border: 1px solid #8884; border-radius: 10px; padding: 10px; max-height: 220px; overflow: auto; }
+    .hint { font-size: 0.9rem; opacity: 0.85; }
+  </style>
+</head>
+<body>
+  <h1>Mochi speed benchmark</h1>
+  <p class="hint">Tests both regular file upload chunk size and DFU delay. Browser must support Web Bluetooth (Chrome/Edge).</p>
+
+  <div class="card">
+    <h2>0. Shared connection (used by both modes)</h2>
+    <p class="hint">Connect here once. Regular benchmark uses this connection directly. DFU benchmark uses it to send "Enter DFU" when needed.</p>
+    <div class="row">
+      <button id="btnConnect">Connect device</button>
+      <button id="btnDisconnect">Disconnect</button>
+      <span id="connState" class="mono">disconnected</span>
+    </div>
+  </div>
+
+  <div class="card">
+    <h2>1. Regular mode upload benchmark</h2>
+    <p class="hint">Uses synthetic files and uploads into <span class="mono">_mochi</span>. The app cleans leftover benchmark folders before every run.</p>
+    <div class="row">
+      <label>File size (bytes) <input id="regularFileSize" type="number" min="1" value="512"></label>
+      <label>Total files per run <input id="regularFilesCount" type="number" min="1" value="160"></label>
+      <label>Files per folder <input id="regularFilesPerFolder" type="number" min="1" value="80"></label>
+    </div>
+    <div class="row">
+      <label>Chunk sizes (bytes) <input id="regularChunks" type="text" value="208,216,224"></label>
+      <label>Repeats <input id="regularRepeats" type="number" min="1" max="10" value="2"></label>
+      <button id="btnRunRegular">Run regular sweep</button>
+    </div>
+    <div id="regularSummary" class="mono"></div>
+    <table id="regularTable" hidden>
+      <thead><tr><th>Chunk</th><th>Runs</th><th>Avg sec</th><th>Avg KB/s</th><th>Result</th></tr></thead>
+      <tbody></tbody>
+    </table>
+  </div>
+
+  <div class="card" hidden>
+    <h2>2. DFU benchmark</h2>
+    <p class="hint">This performs real DFU updates. Use a test package/device only.</p>
+    <div class="row">
+      <label>DFU package (.zip) <input id="dfuFile" type="file" accept=".zip"></label>
+    </div>
+    <div class="row">
+      <label>Delays (ms) <input id="dfuDelays" type="text" value="10,5,2,0"></label>
+      <label><input id="dfuAlreadyInMode" type="checkbox"> Device already in DFU mode (skip shared connection)</label>
+    </div>
+    <div class="row">
+      <button id="btnRunDfu">Run DFU sweep</button>
+    </div>
+    <div id="dfuSummary" class="mono"></div>
+    <table id="dfuTable" hidden>
+      <thead><tr><th>Delay</th><th>Sec</th><th>Status</th><th>Detail</th></tr></thead>
+      <tbody></tbody>
+    </table>
+  </div>
+
+  <h2>Log</h2>
+  <div id="log"></div>
+
+  <script src="./vendor/secure-dfu.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/jszip@3/dist/jszip.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/crc-32@1/crc32.js"></script>
+  <script type="module" src="./bench.js"></script>
+</body>
+</html>
