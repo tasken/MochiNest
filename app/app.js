@@ -9,33 +9,42 @@ const PIXL_RELEASES_URL = "https://github.com/solosky/pixl.js/releases";
 const PIXL_LATEST_API = "https://api.github.com/repos/solosky/pixl.js/releases/latest";
 
 const FAVICON_PATH = `<path d="M225.5-82.5Q120-125 120-200q0-32 20-57.5t56-45.5l65 58q-24 8-42.5 20.5T200-200q0 26 81 53t199 27q118 0 199-27t81-53q0-12-18.5-24.5T699-245l65-58q36 20 56 45.5t20 57.5q0 75-105.5 117.5T480-40q-149 0-254.5-42.5Zm212-125Q417-215 400-230L148-453q-13-11-20.5-27t-7.5-33v-80q0-17 6.5-33t19.5-27l252-235q17-16 38-24t44-8q23 0 44 8t38 24l252 235q13 11 19.5 27t6.5 33v80q0 17-7.5 33T812-453L560-230q-17 15-37.5 22.5T480-200q-22 0-42.5-7.5Zm-42-357Q410-579 410-600t-14.5-35.5Q381-650 360-650t-35.5 14.5Q310-621 310-600t14.5 35.5Q339-550 360-550t35.5-14.5ZM410-496q43 21 90.5 13.5T584-522q34-29 44.5-73T618-678L410-496Zm105.5-188.5Q530-699 530-720t-14.5-35.5Q501-770 480-770t-35.5 14.5Q430-741 430-720t14.5 35.5Q459-670 480-670t35.5-14.5Z"/>`;
-const FAVICON_COLORS = {
-  disconnected: "#9ca3af",
-  connecting:   "#f59e0b",
-  connected:    "#10b981",
-  reconnecting: "#fb923c",
-  mock:         "#7878cc",
-  dfu:          "#f97316",
+const VISUAL_STATE_COLORS = {
+  disconnected: { favicon: "#9ca3af", theme: "#9ca3af", brandFrom: "#9ca3af", brandTo: "#cbd5e1" },
+  connecting:   { favicon: "#f59e0b", theme: "#f59e0b", brandFrom: "#f59e0b", brandTo: "#fde68a" },
+  connected:    { favicon: "#10b981", theme: "#059669", brandFrom: "#059669", brandTo: "#34d399" },
+  reconnecting: { favicon: "#fb923c", theme: "#f97316", brandFrom: "#f97316", brandTo: "#fbbf24" },
+  mock:         { favicon: "#7878cc", theme: "#7c3aed", brandFrom: "#7c3aed", brandTo: "#d946ef" },
+  dfu:          { favicon: "#f97316", theme: "#ea580c", brandFrom: "#ea580c", brandTo: "#fb923c" },
 };
 
-const BRAND_GRADIENTS = {
-  disconnected: ["#9ca3af", "#cbd5e1"],
-  connecting:   ["#f59e0b", "#fde68a"],
-  connected:    ["#059669", "#34d399"],
-  reconnecting: ["#f97316", "#fbbf24"],
-  mock:         ["#7c3aed", "#d946ef"],
-  dfu:          ["#ea580c", "#fb923c"],
-};
+function resolveVisualState(connState, isMock) {
+  const key = isMock ? "mock" : connState;
+  return VISUAL_STATE_COLORS[key] ?? VISUAL_STATE_COLORS.disconnected;
+}
+
+function hexToRgba(hex, alpha) {
+  const value = String(hex || "").replace("#", "");
+  if (value.length !== 6) return `rgba(124, 58, 237, ${alpha})`;
+  const r = Number.parseInt(value.slice(0, 2), 16);
+  const g = Number.parseInt(value.slice(2, 4), 16);
+  const b = Number.parseInt(value.slice(4, 6), 16);
+  return `rgba(${r}, ${g}, ${b}, ${alpha})`;
+}
 
 function setStateColors(connState, isMock) {
-  const key = isMock ? "mock" : connState;
-  const faviconColor = FAVICON_COLORS[key] ?? FAVICON_COLORS.disconnected;
-  const [gradFrom, gradTo] = BRAND_GRADIENTS[key] ?? BRAND_GRADIENTS.disconnected;
-  const svg = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 -960 960 960" width="32" height="32" fill="${faviconColor}">${FAVICON_PATH}</svg>`;
+  const { favicon, theme, brandFrom, brandTo } = resolveVisualState(connState, isMock);
+  const mockVisuals = resolveVisualState("connected", true);
+  const svg = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 -960 960 960" width="32" height="32" fill="${favicon}">${FAVICON_PATH}</svg>`;
   const link = document.querySelector('link[rel="icon"]');
+  const themeMeta = document.querySelector('meta[name="theme-color"]');
   if (link) link.href = "data:image/svg+xml," + encodeURIComponent(svg);
-  document.documentElement.style.setProperty("--brand-grad-from", gradFrom);
-  document.documentElement.style.setProperty("--brand-grad-to", gradTo);
+  if (themeMeta) themeMeta.setAttribute("content", theme);
+  document.documentElement.style.setProperty("--brand-grad-from", brandFrom);
+  document.documentElement.style.setProperty("--brand-grad-to", brandTo);
+  document.documentElement.style.setProperty("--topbar-badge-dev-color", mockVisuals.theme);
+  document.documentElement.style.setProperty("--topbar-badge-dev-dot", mockVisuals.theme);
+  document.documentElement.style.setProperty("--topbar-badge-dev-glow", hexToRgba(mockVisuals.theme, 0.18));
 }
 
 // === Utilities ===
@@ -94,6 +103,11 @@ function firstPlusMore(items) {
 
 function setHiddenAll(hidden, ...elements) {
   for (const e of elements) e.hidden = hidden;
+}
+
+function trackAnalyticsEvent(name, params = {}) {
+  if (typeof window.gtag !== "function") return;
+  window.gtag("event", name, params);
 }
 
 // === DOM References ===
@@ -248,26 +262,24 @@ const el = {
   dfuModal: document.getElementById("dfuModal"),
   btnDfuClose: document.getElementById("btnDfuClose"),
   dfuConfirmSection: document.getElementById("dfuConfirmSection"),
-  dfuTabNative: document.getElementById("dfuTabNative"),
-  dfuTabCustom: document.getElementById("dfuTabCustom"),
-  dfuTypeDesc: document.getElementById("dfuTypeDesc"),
   dfuNativePanel: document.getElementById("dfuNativePanel"),
+  dfuCustomPanel: document.getElementById("dfuCustomPanel"),
   dfuReleaseContainer: document.getElementById("dfuReleaseContainer"),
-  btnDfuRefreshRelease: document.getElementById("btnDfuRefreshRelease"),
+  dfuFileDividerLabel: document.getElementById("dfuFileDividerLabel"),
   btnDfuPickFile: document.getElementById("btnDfuPickFile"),
   dfuPickedFile: document.getElementById("dfuPickedFile"),
   dfuPickedName: document.getElementById("dfuPickedName"),
   btnDfuChangeFile: document.getElementById("btnDfuChangeFile"),
   dfuVariantSection: document.getElementById("dfuVariantSection"),
-  dfuVariantDetected: document.getElementById("dfuVariantDetected"),
-  dfuVariantDetectedName: document.getElementById("dfuVariantDetectedName"),
-  dfuVariantVerifyNote: document.getElementById("dfuVariantVerifyNote"),
-  dfuVariantUnknown: document.getElementById("dfuVariantUnknown"),
   btnDfuVariantLCD: document.getElementById("btnDfuVariantLCD"),
   btnDfuVariantOLED: document.getElementById("btnDfuVariantOLED"),
+  btnDfuVariantCustom: document.getElementById("btnDfuVariantCustom"),
   dfuDevFailLabel: document.getElementById("dfuDevFailLabel"),
   dfuDevFailToggle: document.getElementById("dfuDevFailToggle"),
   dfuProgressSection: document.getElementById("dfuProgressSection"),
+  dfuWarnTitle: document.getElementById("dfuWarnTitle"),
+  dfuWarnBodyPrimary: document.getElementById("dfuWarnBodyPrimary"),
+  dfuWarnBodySecondary: document.getElementById("dfuWarnBodySecondary"),
   dfuStatusSubhead: document.getElementById("dfuStatusSubhead"),
   dfuActiveIcon: document.getElementById("dfuActiveIcon"),
   dfuActiveLabel: document.getElementById("dfuActiveLabel"),
@@ -531,6 +543,7 @@ function setConnState(newState) {
     el.folderWarningText.textContent = "";
     el.topbarBadge.textContent = "";
     el.topbarBadge.classList.remove("dev");
+    state.client = null;
   }
 
   updateControls();
@@ -726,9 +739,9 @@ async function connectOrDisconnect() {
   state.client.onDisconnect = () => {
     const wasReconnecting = state.connState === "reconnecting";
     if (state.disconnectToast) { removeToast(state.disconnectToast); state.disconnectToast = null; }
+    invalidateCache();
     if (state.connState !== "disconnected") setConnState("disconnected");
     if (wasReconnecting) showErrorToast("Reconnection timed out", "Disconnect and try again.");
-    invalidateCache();
   };
   state.client.onReconnecting = () => {
     if (state.abortController) state.abortController.abort();
@@ -781,7 +794,10 @@ async function devConnect() {
   if (state.connState === "connected") return;
   setConnState("connecting");
   state.client = new DevMockClient();
-  state.client.onDisconnect = () => setConnState("disconnected");
+  state.client.onDisconnect = () => {
+    invalidateCache();
+    setConnState("disconnected");
+  };
   setConnState("connected");
   showSuccessToast("Connected");
 
@@ -986,7 +1002,15 @@ document.addEventListener("keydown", e => {
   if (!el.imgLightbox.hidden) { e.preventDefault(); closeLightbox(); return; }
   // 2. Open modals
   const openModalEl = document.querySelector(".modal-overlay.open");
-  if (openModalEl) { e.preventDefault(); closeModal(openModalEl); return; }
+  if (openModalEl) {
+    e.preventDefault();
+    if (openModalEl === el.dfuModal) {
+      if (dfuCanCloseFromBackdrop()) closeDfuModal();
+      return;
+    }
+    closeModal(openModalEl);
+    return;
+  }
   // 3. Log sheet
   if (el.logOverlay.classList.contains("open")) { e.preventDefault(); closeLogSheet(); return; }
   // 4. Details sheet (mobile) or details panel (desktop)
@@ -1004,8 +1028,7 @@ for (const modal of [el.confirmModal, el.inputModal, el.sanitizeModalNone, el.up
 }
 el.dfuModal.addEventListener("click", (e) => {
   if (e.target !== el.dfuModal) return;
-  const inTransfer = dfuInProgress();
-  if (!inTransfer) closeDfuModal();
+  if (dfuCanCloseFromBackdrop()) closeDfuModal();
 });
 
 // === Update Controls ===
@@ -3107,7 +3130,7 @@ async function resolveOtaZip(fileBlob, fileName) {
   }
 
   const nested = Object.values(zip.files).find(e => !e.dir && e.name.toLowerCase().endsWith(".zip"));
-  if (!nested) throw new Error("No update package found. Try a DFU .zip or a full Pixl release .zip.");
+  if (!nested) throw new Error("No update file found. Use a firmware .zip file or a full Pixl.js release .zip.");
 
   log(`[DFU] Extracting inner package: ${nested.name}`, "ok");
   const innerLower = nested.name.toLowerCase();
@@ -3121,7 +3144,7 @@ async function loadDfuImages(zipBlob) {
   log("[DFU] Parsing DFU manifest...", "cmd");
   const zip = await window.JSZip.loadAsync(zipBlob);
   const manifestFile = zip.file("manifest.json");
-  if (!manifestFile) throw new Error("This doesn't look like a valid DFU package (manifest.json is missing).");
+  if (!manifestFile) throw new Error("This file doesn't look like a valid update package.");
 
   const manifestRoot = JSON.parse(await manifestFile.async("string"));
   const manifest = manifestRoot.manifest || {};
@@ -3185,7 +3208,7 @@ async function validateDfuZip(file) {
   // Release zip: must contain at least one nested .zip
   const nested = Object.values(zip.files).find(e => !e.dir && e.name.toLowerCase().endsWith(".zip"));
   if (!nested)
-    throw new Error("No firmware package found inside this file. Use a DFU .zip or a full Pixl.js release .zip.");
+    throw new Error("No firmware file found inside this .zip. Use a firmware .zip file or a full Pixl.js release .zip.");
 }
 
 const MOCK_RELEASE = {
@@ -3221,6 +3244,10 @@ function dfuInProgress() {
   return active.includes(dfuState.phase);
 }
 
+function dfuCanCloseFromBackdrop() {
+  return !dfuInProgress() && el.dfuWarnSection.hidden;
+}
+
 function closeDfuModal() {
   closeModal(el.dfuModal);
   resetDfuUi();
@@ -3246,7 +3273,29 @@ function _clearDfuWarnCountdown() {
   _dfuWarnTimer = null;
 }
 
+function updateDfuWarnCopy() {
+  const isCustom = dfuState.firmwareType === "custom";
+  const isLocalFile = dfuState.source?.type === "file";
+
+  el.dfuWarnTitle.textContent = "Final check before updating";
+
+  if (isCustom) {
+    el.dfuWarnBodyPrimary.textContent =
+      "Make sure this update file is meant for your device and comes from the custom project you use.";
+  } else if (isLocalFile) {
+    el.dfuWarnBodyPrimary.textContent =
+      "Make sure this update file matches your device. If it is for the wrong model, the screen may stay blank until you install the correct file.";
+  } else {
+    el.dfuWarnBodyPrimary.textContent =
+      "Confirm you picked the correct allmiibo model. If LCD and OLED are mixed up, the screen can stay blank until you install the correct update.";
+  }
+
+  el.dfuWarnBodySecondary.textContent =
+    "If the update is interrupted, the device may stay in update mode. This is usually recoverable by retrying with the correct file.";
+}
+
 function dfuShowWarnView() {
+  updateDfuWarnCopy();
   el.dfuConfirmSection.hidden = true;
   el.dfuWarnSection.hidden = false;
   el.dfuProgressSection.hidden = true;
@@ -3412,53 +3461,48 @@ async function fetchDfuRelease() {
   } finally {
     dfuState.releaseLoading = false;
     renderDfuReleaseList();
+    if (dfuState.chosenVariant && dfuState.firmwareType === "native") {
+      autoSelectReleaseSource(dfuState.chosenVariant);
+    }
   }
 }
 
 function renderDfuReleaseList() {
   const c = el.dfuReleaseContainer;
   if (dfuState.releaseLoading) {
-    c.innerHTML = `<div class="dfu-release-status"><span class="ms dfu-release-spinner">progress_activity</span> Fetching latest release…</div>`;
+    c.innerHTML = `<span class="ms dfu-release-spinner">progress_activity</span><span class="dfu-release-status-text">Checking the latest official update…</span>`;
     return;
   }
   if (!dfuState.release) {
-    c.innerHTML = `<div class="dfu-release-status">No release loaded.</div>`;
+    c.innerHTML = `<span class="dfu-release-status-text">Checking the latest official update…</span>`;
     return;
   }
   if (dfuState.release.error) {
-    c.innerHTML = `<div class="dfu-release-status error">Failed to load: ${escapeHtml(dfuState.release.error)}</div>`;
+    c.innerHTML = `<span class="dfu-release-status-text error">Couldn't check the latest official update. You can still use your own file below.</span>`;
     return;
   }
   const assets = (dfuState.release.assets || []).filter(a => a.name.toLowerCase().endsWith(".zip"));
   if (!assets.length) {
-    c.innerHTML = `<div class="dfu-release-status">No .zip assets in latest release.</div>`;
+    c.innerHTML = `<span class="dfu-release-status-text">The latest official release does not include an update file right now.</span>`;
     return;
   }
   const tagName = dfuState.release.tag_name || "";
-  const releaseName = dfuState.release.name || "";
   const releaseUrl = dfuState.release.html_url || PIXL_RELEASES_URL;
-  const metaHtml = tagName
-    ? `<div class="dfu-release-meta">
-        <span class="dfu-release-tag">${escapeHtml(tagName)}</span>
-        ${releaseName && releaseName !== tagName ? `<span class="dfu-release-name">${escapeHtml(releaseName)}</span>` : ""}
-        <a class="dfu-release-link" href="${escapeHtml(releaseUrl)}" target="_blank" rel="noopener">View release</a>
-       </div>`
+  c.innerHTML = tagName
+    ? `<span class="dfu-release-status-text">Latest official version:</span><span class="dfu-release-tag">${escapeHtml(tagName)}</span><a class="dfu-release-link" href="${escapeHtml(releaseUrl)}" target="_blank" rel="noopener">View release notes <span class="ms-sm">open_in_new</span></a>`
     : "";
-  const buttonsHtml = assets.map(a => {
-    const proxyUrl = a.browser_download_url.replace(
-      "https://github.com/solosky/pixl.js/releases/download/",
-      "/dfu-proxy/"
-    );
-    const selected = dfuState.source?.url === proxyUrl ? " selected" : "";
-    const sizeStr = a.size ? formatBytes(a.size) : "";
-    return `<button class="dfu-asset-btn${selected}" data-url="${escapeHtml(proxyUrl)}" data-name="${escapeHtml(a.name)}">
-      <span class="ms-sm dfu-asset-icon">folder_zip</span>
-      <span class="dfu-asset-name">${escapeHtml(a.name)}</span>
-      ${sizeStr ? `<span class="dfu-asset-size">${sizeStr}</span>` : ""}
-      <span class="ms-sm dfu-asset-check">check_circle</span>
-    </button>`;
-  }).join("");
-  c.innerHTML = metaHtml + `<div class="dfu-release-assets">${buttonsHtml}</div>`;
+}
+
+function autoSelectReleaseSource(variant) {
+  if (!dfuState.release || dfuState.release.error) return;
+  const assets = (dfuState.release.assets || []).filter(a => a.name.toLowerCase().endsWith(".zip"));
+  const match = assets.find(a => a.name.toLowerCase().includes(`_${variant.toLowerCase()}`));
+  if (!match) return;
+  const url = match.browser_download_url.replace(
+    "https://github.com/solosky/pixl.js/releases/download/",
+    "/dfu-proxy/"
+  );
+  selectDfuSource({ type: "url", url, name: match.name });
 }
 
 // ── Package selection ─────────────────────────────────────────────────────────
@@ -3471,7 +3515,9 @@ function detectVariantFromName(name) {
 function selectDfuSource(source) {
   dfuState.source = source;
   dfuState.variant = detectVariantFromName(source.name);
-  dfuState.chosenVariant = source.type === "file" ? (dfuState.variant || "file") : dfuState.variant;
+  if (dfuState.firmwareType === "native" && dfuState.variant) {
+    dfuState.chosenVariant = dfuState.variant;
+  }
   el.dfuPickedFile.hidden = source.type !== "file";
   el.btnDfuPickFile.hidden = source.type === "file";
   if (source.type === "file") el.dfuPickedName.textContent = source.name;
@@ -3481,63 +3527,34 @@ function selectDfuSource(source) {
 
 
 function updateDfuVariantUI() {
-  const src = dfuState.source;
-  const hasSource = !!src;
-
-  // Local file: user picked their own ZIP — trust them, hide variant section
-  if (hasSource && src.type === "file") {
-    el.dfuVariantSection.hidden = true;
-    return;
-  }
-
-  el.dfuVariantSection.hidden = !hasSource;
-  if (!hasSource) return;
-
-  if (dfuState.variant) {
-    el.dfuVariantDetected.hidden = false;
-    el.dfuVariantUnknown.hidden = true;
-    el.dfuVariantDetectedName.textContent = dfuState.variant;
-    el.dfuVariantVerifyNote.hidden = false;
-  } else {
-    el.dfuVariantDetected.hidden = true;
-    el.dfuVariantUnknown.hidden = false;
-    el.dfuVariantVerifyNote.hidden = true;
-    el.btnDfuVariantLCD.classList.toggle("selected", dfuState.chosenVariant === "LCD");
-    el.btnDfuVariantOLED.classList.toggle("selected", dfuState.chosenVariant === "OLED");
-  }
+  const isCustom = dfuState.firmwareType === "custom";
+  el.btnDfuVariantLCD.classList.toggle("selected", !isCustom && dfuState.chosenVariant === "LCD");
+  el.btnDfuVariantOLED.classList.toggle("selected", !isCustom && dfuState.chosenVariant === "OLED");
+  el.btnDfuVariantCustom.classList.toggle("selected", isCustom);
 }
 
 function updateDfuStartButton() {
-  const ready = !!dfuState.source && !!(dfuState.variant || dfuState.chosenVariant);
+  const isCustom = dfuState.firmwareType === "custom";
+  const ready = !!dfuState.source && (isCustom || !!dfuState.chosenVariant);
   el.btnDfuStart.disabled = !ready;
 }
-
-const DFU_FIRMWARE_TYPES = {
-  native: {
-    devices: ["allmiibo"],
-    desc: "Official firmware from solosky/pixl.js. Pick a release below or use a local file.",
-  },
-  custom: {
-    devices: ["amiibotool", "NFC emulator", "NFC tool", "Joysfusion", "Wuzplay", "Flashiibo"],
-    desc: "A community or modified build. Use the .zip file provided by your firmware\u2019s developer.",
-  },
-};
 
 function setDfuFirmwareType(type) {
   dfuState.firmwareType = type;
   const isCustom = type === "custom";
   el.dfuNativePanel.hidden = isCustom;
-  el.dfuTabNative.classList.toggle("active", !isCustom);
-  el.dfuTabCustom.classList.toggle("active", isCustom);
-  const { desc, devices } = DFU_FIRMWARE_TYPES[type];
-  const chips = devices.map(d => `<span class="dfu-device-chip">${escapeHtml(d)}</span>`).join("");
-  el.dfuTypeDesc.innerHTML = `<span class="dfu-type-desc-text">${escapeHtml(desc)}</span><span class="dfu-device-list"><span class="dfu-device-list-label">Used by:</span>${chips}</span>`;
-  if (isCustom && dfuState.source?.type === "url") {
-    dfuState.source = null;
-    el.dfuReleaseContainer.querySelectorAll(".dfu-asset-btn.selected").forEach(b => b.classList.remove("selected"));
-    updateDfuVariantUI();
-    updateDfuStartButton();
+  el.dfuCustomPanel.hidden = !isCustom;
+  el.dfuFileDividerLabel.textContent = isCustom ? "choose a local package" : "or choose a local package";
+  if (isCustom) {
+    dfuState.chosenVariant = null;
+    if (dfuState.source?.type === "url") {
+      dfuState.source = null;
+    }
+  } else if (dfuState.source?.type === "file") {
+    dfuState.chosenVariant = detectVariantFromName(dfuState.source.name) || dfuState.chosenVariant;
   }
+  updateDfuVariantUI();
+  updateDfuStartButton();
 }
 
 function resetDfuUi() {
@@ -3560,7 +3577,6 @@ function resetDfuUi() {
   el.dfuPickedFile.hidden = true;
   el.btnDfuPickFile.hidden = false;
   el.dfuPickedName.textContent = "";
-  el.dfuVariantSection.hidden = true;
   el.dfuProgressBarWrap.hidden = true;
   el.dfuErrorBox.hidden = true;
   el.dfuTroubleshootLinks.hidden = true;
@@ -3570,7 +3586,6 @@ function resetDfuUi() {
   el.dfuActiveIcon.className = "modal-icon-badge primary";
   el.dfuActiveIcon.querySelector(".ms").textContent = "sync";
   el.dfuStageList.innerHTML = "";
-  el.dfuReleaseContainer.querySelectorAll(".dfu-asset-btn.selected").forEach(b => b.classList.remove("selected"));
   el.dfuDevFailLabel.hidden = !dfuIsDev();
   el.dfuDevFailToggle.checked = false;
   el.btnDfuStart.disabled = true;
@@ -3580,6 +3595,7 @@ function resetDfuUi() {
 // ── Transfer ──────────────────────────────────────────────────────────────────
 
 async function runDfuTransfer() {
+  const shouldTrackDfuAnalytics = !dfuIsDev();
   dfuState.cancelFlag = false;
   dfuShowProgressView();
   updateControls();
@@ -3587,7 +3603,7 @@ async function runDfuTransfer() {
   try {
     dfuSetStage("preparing");
     const src = dfuState.source;
-    if (!src) throw new Error("Pick a package first.");
+    if (!src) throw new Error("Choose an update package first.");
 
     if (dfuIsDev()) {
       // Simulate the full flow without real BLE or real ZIP
@@ -3683,6 +3699,13 @@ async function runDfuTransfer() {
 
     log("[DFU] Firmware updated successfully.", "ok");
     dfuState.phase = "success";
+    if (shouldTrackDfuAnalytics) {
+      trackAnalyticsEvent("Flash_OK", {
+        firmware_type: dfuState.firmwareType,
+        source_type: src.type,
+        variant: dfuState.chosenVariant || dfuState.variant || "unknown",
+      });
+    }
     dfuShowSuccessView();
     updateControls();
 
@@ -3692,9 +3715,17 @@ async function runDfuTransfer() {
       log("[DFU] Bluetooth picker dismissed.", "err");
       dfuState.phase = "failed";
       dfuState.pickerDismissed = true;
+      if (shouldTrackDfuAnalytics) {
+        trackAnalyticsEvent("Flash_error", {
+          firmware_type: dfuState.firmwareType,
+          source_type: dfuState.source?.type || "unknown",
+          variant: dfuState.chosenVariant || dfuState.variant || "unknown",
+          error_type: "picker_dismissed",
+        });
+      }
       dfuShowFailedView(
-        "Your device might still be in update mode. If so, tap retry below to open the Bluetooth picker and select it to continue.",
-        { title: "No device selected", subhead: "CONNECTION CANCELLED" }
+        "Your device may still be in update mode. Tap Retry to open Bluetooth again and select it to continue.",
+        { title: "Bluetooth device not selected", subhead: "CONNECTION NOT COMPLETED" }
       );
       updateControls();
     } else if (dfuState.cancelFlag || err.message?.toLowerCase().includes("cancel")) {
@@ -3703,6 +3734,14 @@ async function runDfuTransfer() {
     } else {
       log(`[DFU] Update failed: ${err.message}`, "err");
       dfuState.phase = "failed";
+      if (shouldTrackDfuAnalytics) {
+        trackAnalyticsEvent("Flash_error", {
+          firmware_type: dfuState.firmwareType,
+          source_type: dfuState.source?.type || "unknown",
+          variant: dfuState.chosenVariant || dfuState.variant || "unknown",
+          error_type: "transfer_failed",
+        });
+      }
       dfuShowFailedView(err.message);
       updateControls();
     }
@@ -3724,7 +3763,7 @@ el.btnUpdateFirmware.addEventListener("click", () => {
   openModal(el.dfuModal);
   setStateColors("dfu", false);
   updateControls();
-  if (!dfuState.release && !dfuState.releaseLoading) fetchDfuRelease();
+  fetchDfuRelease();
 });
 
 el.btnDfuFromDfu.addEventListener("click", () => {
@@ -3739,28 +3778,11 @@ el.btnDfuFromDfu.addEventListener("click", () => {
   openModal(el.dfuModal);
   setStateColors("dfu", false);
   updateControls();
-  if (!dfuState.release && !dfuState.releaseLoading) fetchDfuRelease();
+  fetchDfuRelease();
 });
 
 el.btnDfuClose.addEventListener("click", () => {
   if (!dfuInProgress()) closeDfuModal();
-});
-
-el.dfuTabNative.addEventListener("click", () => setDfuFirmwareType("native"));
-el.dfuTabCustom.addEventListener("click", () => setDfuFirmwareType("custom"));
-
-el.btnDfuRefreshRelease.addEventListener("click", fetchDfuRelease);
-
-el.dfuReleaseContainer.addEventListener("click", (e) => {
-  const btn = e.target.closest(".dfu-asset-btn");
-  if (!btn) return;
-  const url = btn.dataset.url;
-  const name = btn.dataset.name;
-  if (!url) return;
-
-  el.dfuReleaseContainer.querySelectorAll(".dfu-asset-btn").forEach(b => b.classList.remove("selected"));
-  btn.classList.add("selected");
-  selectDfuSource({ type: "url", url, name });
 });
 
 el.btnDfuPickFile.addEventListener("click", () => {
@@ -3777,31 +3799,34 @@ el.dfuFileInput.addEventListener("change", async () => {
   const file = el.dfuFileInput.files[0];
   if (!file) return;
   clearToasts();
-  el.dfuReleaseContainer.querySelectorAll(".dfu-asset-btn.selected").forEach(b => b.classList.remove("selected"));
   try {
     await validateDfuZip(file);
   } catch (err) {
     showErrorToast("Invalid file", err.message);
     el.dfuFileInput.value = "";
-    dfuState.source = null;
-    updateDfuStartButton();
     return;
   }
   selectDfuSource({ type: "file", file, name: file.name });
 });
 
 el.btnDfuVariantLCD.addEventListener("click", () => {
+  setDfuFirmwareType("native");
   dfuState.chosenVariant = "LCD";
-  el.btnDfuVariantLCD.classList.add("selected");
-  el.btnDfuVariantOLED.classList.remove("selected");
+  updateDfuVariantUI();
+  autoSelectReleaseSource("LCD");
   updateDfuStartButton();
 });
 
 el.btnDfuVariantOLED.addEventListener("click", () => {
+  setDfuFirmwareType("native");
   dfuState.chosenVariant = "OLED";
-  el.btnDfuVariantOLED.classList.add("selected");
-  el.btnDfuVariantLCD.classList.remove("selected");
+  updateDfuVariantUI();
+  autoSelectReleaseSource("OLED");
   updateDfuStartButton();
+});
+
+el.btnDfuVariantCustom.addEventListener("click", () => {
+  setDfuFirmwareType("custom");
 });
 
 el.btnDfuStart.addEventListener("click", () => {
@@ -3827,6 +3852,7 @@ el.btnDfuCancelTransfer.addEventListener("click", () => {
 });
 
 function dfuReconnect() {
+  const shouldReconnectMock = state.client instanceof DevMockClient;
   closeDfuModal();
   // DFU may have left the connection in an ambiguous state (mock never
   // disconnects; real device may have already dropped). Tear it down
@@ -3836,7 +3862,7 @@ function dfuReconnect() {
     if (state.client) state.client.disconnect();
     setConnState("disconnected");
   }
-  if (dfuIsDev()) {
+  if (shouldReconnectMock) {
     devConnect();
   } else {
     connectOrDisconnect();
@@ -3851,7 +3877,7 @@ el.btnDfuReboot.addEventListener("click", () => {
     device.gatt.disconnect();
   }
   closeDfuModal();
-  showSuccessToast("Exiting DFU mode", "Power cycle the device to return to normal mode.");
+  showSuccessToast("Exiting update mode", "Power cycle the device to return to normal mode.");
 });
 
 el.btnDfuRetry.addEventListener("click", async () => {
